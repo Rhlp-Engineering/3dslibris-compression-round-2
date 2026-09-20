@@ -86,6 +86,48 @@ bool IsSupportedCbzImagePath(const std::string &path) {
          HasExtCI(name, ".png");
 }
 
+bool IsAsciiDigit(char c) {
+  return c >= '0' && c <= '9';
+}
+
+bool NaturalPathLess(const std::string &a, const std::string &b) {
+  size_t i = 0, j = 0;
+  while (i < a.size() && j < b.size()) {
+    if (IsAsciiDigit(a[i]) && IsAsciiDigit(b[j])) {
+      size_t a_end = i, b_end = j;
+      while (a_end < a.size() && IsAsciiDigit(a[a_end]))
+        a_end++;
+      while (b_end < b.size() && IsAsciiDigit(b[b_end]))
+        b_end++;
+      size_t a_digits = i, b_digits = j;
+      while (a_digits < a_end && a[a_digits] == '0')
+        a_digits++;
+      while (b_digits < b_end && b[b_digits] == '0')
+        b_digits++;
+
+      // Compare arbitrary-length numbers without conversion or allocation.
+      if (a_end - a_digits != b_end - b_digits)
+        return a_end - a_digits < b_end - b_digits;
+      for (size_t n = 0; n < a_end - a_digits; n++) {
+        if (a[a_digits + n] != b[b_digits + n])
+          return a[a_digits + n] < b[b_digits + n];
+      }
+      // Equal values: fewer leading zeroes first. Resolve this before the
+      // rest of the path so distinct directory names stay grouped together.
+      if (a_end - i != b_end - j)
+        return a_end - i < b_end - j;
+      i = a_end;
+      j = b_end;
+    } else {
+      if (a[i] != b[j])
+        return (unsigned char)a[i] < (unsigned char)b[j];
+      i++;
+      j++;
+    }
+  }
+  return i == a.size() && j < b.size();
+}
+
 struct ZipEntryInfo {
   std::string raw_name;
   std::string normalized_name;
@@ -235,7 +277,7 @@ bool IndexCbzArchiveEntries(const std::string &archive_path,
 
   std::sort(entries->begin(), entries->end(),
             [](const CbzPageEntry &a, const CbzPageEntry &b) {
-              return a.normalized_path < b.normalized_path;
+              return NaturalPathLess(a.normalized_path, b.normalized_path);
             });
 
   if (entries->empty()) {
