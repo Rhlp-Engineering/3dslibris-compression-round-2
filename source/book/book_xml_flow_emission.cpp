@@ -507,30 +507,29 @@ void EmitFlowedFragmentRaw(parsedata_t *p, const char *txt, int txtlen,
   emit_metrics.display_width = ts->display.width;
   {
     const unsigned char parse_orientation = (u8)p->book->GetOrientation();
-    if (orientation_utils::IsLandscape(parse_orientation)) {
-      // Landscape screens wrap at different widths; give the emit loop the
-      // per-screen table and start from the current screen's width.
-      emit_metrics.per_screen_valid = true;
-      for (int s = 0; s < 2; s++) {
-        emit_metrics.screen_width_by_screen[s] =
-            text_screen_geometry::ResolveReadingScreenGeometry(
-                parse_orientation, s)
-                .width;
-        const text_render_layout_utils::ReadingScreenMetrics sm =
-            text_render_layout_utils::ResolveReadingScreenMetricsForOrientation(
-                parse_orientation, s, ts->margin.bottom,
-                text_render_layout_utils::ResolveCompactReadingBottomMargin(
-                    ts->margin.bottom));
-        emit_metrics.screen_max_height_by_screen[s] = sm.max_height;
-        emit_metrics.screen_bottom_margin_by_screen[s] =
-            text_render_layout_utils::ApplyLineHeightPaginationGuard(
-                sm.bottom_margin, lineheight);
-      }
-      emit_metrics.display_width =
-          emit_metrics.screen_width_by_screen[(p->screen >= 0 && p->screen < 2)
-                                                  ? p->screen
-                                                  : 0];
+    // A single fragment can cross screens. Portrait heights differ just as
+    // landscape widths do, so neither screen's limits can be reused for both.
+    emit_metrics.per_screen_valid = true;
+    for (int s = 0; s < 2; s++) {
+      emit_metrics.screen_width_by_screen[s] =
+          orientation_utils::IsLandscape(parse_orientation)
+              ? text_screen_geometry::ResolveReadingScreenGeometry(
+                    parse_orientation, s).width
+              : ts->display.width;
+      const text_render_layout_utils::ReadingScreenMetrics sm =
+          text_render_layout_utils::ResolveReadingScreenMetricsForOrientation(
+              parse_orientation, s, ts->margin.bottom,
+              text_render_layout_utils::ResolveCompactReadingBottomMargin(
+                  ts->margin.bottom));
+      emit_metrics.screen_max_height_by_screen[s] = sm.max_height;
+      emit_metrics.screen_bottom_margin_by_screen[s] =
+          text_render_layout_utils::ApplyLineHeightPaginationGuard(
+              sm.bottom_margin, lineheight);
     }
+    emit_metrics.display_width =
+        emit_metrics.screen_width_by_screen[(p->screen >= 0 && p->screen < 2)
+                                                ? p->screen
+                                                : 0];
   }
   emit_metrics.base_margin_left = ts->margin.left;
   emit_metrics.margin_left = ts->margin.left + p->block_margin_left;

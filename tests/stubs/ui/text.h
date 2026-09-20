@@ -27,6 +27,13 @@ public:
   bool linebegan, bold, italic;
   bool screenleft_dirty, screenright_dirty;
 
+  // Opt-in recording for tests that exercise the real Page::Draw loop.
+  bool capture_rendered_text = false;
+  bool landscape = false;
+  int pen_x = 0, pen_y = 0;
+  std::string rendered_ascii;
+  int clipped_glyphs = 0;
+
   Text()
       : pixelsize(14), fgcolor(0), usefgcolor(false), usebgcolor(false),
         screen(nullptr), screenleft(nullptr), screenright(nullptr),
@@ -62,20 +69,34 @@ public:
   void SetFontDir(const std::string &) {}
 
   // Pen / position
-  void InitPen() {}
-  u16 GetPenX() { return 0; }
-  u16 GetPenY() { return 0; }
-  void SetPen(u16, u16) {}
+  void InitPen() {
+    if (capture_rendered_text) {
+      pen_x = margin.left;
+      pen_y = margin.top + GetHeight();
+    }
+  }
+  u16 GetPenX() { return (u16)pen_x; }
+  u16 GetPenY() { return (u16)pen_y; }
+  void SetPen(u16 x, u16 y) {
+    if (capture_rendered_text) { pen_x = x; pen_y = y; }
+  }
 
   // Geometry. The stub keeps display.* configurable per test, so the buffer
   // stride and logical width mirror it instead of the real fixed constants.
   int BufferStride() const { return display.height; }
-  int LogicalWidthFor(bool) const { return display.width; }
+  int LogicalWidthFor(bool is_left_buffer) const {
+    return capture_rendered_text && landscape
+        ? (is_left_buffer ? 400 : 320) : display.width;
+  }
   int LogicalHeightFor(bool is_left_buffer) const {
+    if (capture_rendered_text && landscape) return 240;
     return is_left_buffer ? 400 : 320;
   }
-  int LogicalWidth() const { return display.width; }
-  int LogicalHeight() const { return display.height; }
+  int LogicalWidth() const { return LogicalWidthFor(screen == screenleft); }
+  int LogicalHeight() const {
+    return capture_rendered_text ? LogicalHeightFor(screen == screenleft)
+                                 : display.height;
+  }
 
   // Screen management
   u16 *GetScreen() { return screen; }
@@ -86,10 +107,32 @@ public:
 
   // Drawing
   void FillRect(u16, u16, u16, u16, u16) {}
-  bool PrintNewLine() { return false; }
+  bool PrintNewLine() {
+    if (!capture_rendered_text) return false;
+    pen_x = margin.left;
+    const int next_y = pen_y + GetHeight() + linespacing;
+    if (next_y > LogicalHeight() - margin.bottom) {
+      if (screen != screenleft) return false;
+      screen = screenright;
+      pen_y = margin.top + GetHeight();
+    } else {
+      pen_y = next_y;
+    }
+    return true;
+  }
   void ClearScreen() {}
-  void PrintChar(u32) {}
-  void PrintChar(u32, u8) {}
+  void PrintChar(u32 c) {
+    if (!capture_rendered_text) return;
+    if (c > 32 && c < 127) {
+      if (pen_y <= LogicalHeight() - margin.bottom &&
+          pen_x + GetAdvance(c) <= LogicalWidth() - margin.right)
+        rendered_ascii += (char)c;
+      else
+        clipped_glyphs++;
+    }
+    pen_x += GetAdvance(c);
+  }
+  void PrintChar(u32 c, u8) { PrintChar(c); }
   void PrintString(const char *) {}
   void PrintString(const char *, u8) {}
 

@@ -548,6 +548,11 @@ static void InitParsedataWithEpubDeps(parsedata_t *parsedata, Book *book,
   parsedata->book = book;
   parsedata->reporter = deps.reporter;
   parsedata->ts = deps.ts;
+  if (deps.ts) {
+    // Match Page::Draw even when paragraph/style markers start the buffer.
+    parsedata->pen.x = deps.ts->margin.left;
+    parsedata->pen.y = deps.ts->margin.top + deps.ts->GetHeight();
+  }
   parsedata->prefs = deps.prefs;
   parsedata->coalesce_text_segments = true;
 }

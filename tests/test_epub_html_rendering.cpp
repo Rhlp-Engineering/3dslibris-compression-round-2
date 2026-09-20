@@ -1141,7 +1141,10 @@ void TestLargeFontPaginationDoesNotDropTextAcrossPages() {
 
 } // namespace
 
+#include "xml_page_rendering_cases.h"
+
 int main() {
+  TestXmlPageRenderingContinuity();
   TestRubyAnnotationEmitsBrackets();
   TestTableImgSuppressed();
   TestHiddenElementsDoNotEmitLayoutTokens();
