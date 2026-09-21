@@ -1,6 +1,7 @@
 #pragma once
 
 #include "formats/common/xml_book_parser.h"
+#include "formats/epub/epub_stylesheet_utils.h"
 #include "shared/orientation_utils.h"
 
 #include <unistd.h>
@@ -109,6 +110,38 @@ void ExpectAlignedGlyphLines(Text &text, int alignment) {
     ExpectIntEq("every visual line uses its paragraph alignment",
                 glyphs[start].x, text.margin.left + std::max(0, offset));
     start = end;
+  }
+}
+
+void TestEmbeddedCssAlignedLines() {
+  for (int alignment : {1, 2}) {
+    TestCtx tc;
+    tc.paragraph_spacing = 0;
+    tc.text.capture_rendered_text = true;
+    u16 left = 0, right = 0;
+    tc.text.screenleft = &left;
+    tc.text.screenright = &right;
+    Book book(tc.ctx);
+    parsedata_t p = MakeParseData(tc, book);
+    p.pen.y = tc.text.margin.top + tc.text.GetHeight();
+    std::string html = "<html><head><style>.sample{text-align:";
+    html += alignment == 1 ? "center" : "right";
+    html += "}</style></head><body><p class='sample'>A<br/>BBB<br/>CC</p>"
+            "<p class='sample'>";
+    for (int i = 0; i < 500; ++i) html += "word ";
+    html += "end</p></body></html>";
+    const auto sheets = epub_stylesheet_utils::ExtractHeadStylesheets(html);
+    for (const auto &sheet : sheets)
+      epub_css_class_map::ParseCssIntoClassMap(sheet.css.data(), sheet.css.size(),
+                                              &p.css_class_map);
+    ExpectTrue("embedded CSS XML parses",
+               xml_parse_utils::ParseXmlString(html, MakeXmlOpts(&p)).ok);
+    ExpectTrue("embedded CSS text crosses pages", book.GetPageCount() > 1);
+    for (int page = 0; page < book.GetPageCount(); ++page) {
+      tc.text.rendered_glyphs.clear();
+      book.GetPage(page)->Draw(&tc.text);
+      ExpectAlignedGlyphLines(tc.text, alignment);
+    }
   }
 }
 

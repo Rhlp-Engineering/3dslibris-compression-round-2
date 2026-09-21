@@ -109,6 +109,26 @@ void TestEpubOpen() {
   delete book;
 }
 
+void TestEmbeddedStylesFromReportedEpub() {
+  TestCtx tc;
+  Book book(tc.ctx);
+  book.SetFolderName(TEST_FIXTURES_DIR "/books");
+  book.SetFileName("embedded-styles.epub");
+  book.format = FORMAT_EPUB;
+  ExpectFalse("embedded styles EPUB opens", EpubOpen(&book) != 0);
+  bool centered = false, right = false;
+  for (int i = 0; i < book.GetPageCount(); ++i) {
+    Page *page = book.GetPage(i);
+    for (int j = 0; j < page->GetLength(); ++j) {
+      centered |= page->GetBuffer()[j] == TEXT_PARAGRAPH_CENTER;
+      right |= page->GetBuffer()[j] == TEXT_PARAGRAPH_RIGHT;
+    }
+  }
+  ExpectTrue("real EPUB embedded center reaches page tokens", centered);
+  ExpectTrue("real EPUB embedded right reaches page tokens", right);
+  book.Close();
+}
+
 void TestRealEpubOpenFromEnv() {
   const char *real_epub = getenv("REAL_EPUB_PATH");
   if (!real_epub || real_epub[0] == '\0') {
@@ -578,6 +598,7 @@ void TestEpubPageCacheHeaderValidation() {
 } // namespace
 
 int main() {
+  TestEmbeddedStylesFromReportedEpub();
   TestEpubOpen();
   TestRealEpubOpenFromEnv();
   TestEpubReopen();

@@ -1180,6 +1180,7 @@ void TestLargeFontPaginationDoesNotDropTextAcrossPages() {
 #include "xml_page_rendering_cases.h"
 
 int main() {
+  TestEmbeddedCssAlignedLines();
   TestXmlAlignedLines();
   TestXmlPageRenderingContinuity();
   TestRubyAnnotationEmitsBrackets();

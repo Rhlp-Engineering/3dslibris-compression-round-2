@@ -119,6 +119,7 @@ fi
   "$TEST_ROOT/source/core/stb_image_impl.cpp" \
   "$TEST_ROOT/source/formats/epub/epub_parser.cpp" \
   "$TEST_ROOT/source/formats/epub/epub.cpp" \
+  "$TEST_ROOT/source/formats/epub/epub_stylesheet_utils.cpp" \
   "$TEST_ROOT/source/formats/epub/epub_manifest.cpp" \
   "$TEST_ROOT/source/formats/epub/epub_toc.cpp" \
   "$TEST_ROOT/source/formats/epub/epub_zip_utils.cpp" \
