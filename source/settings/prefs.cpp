@@ -16,6 +16,7 @@
 #include "3ds.h"
 #include "app/app.h"
 #include "shared/debug_log.h"
+
 #include "book/book.h"
 #include "book/book_xml.h"
 #include "formats/common/xml_parse_utils.h"
@@ -32,6 +33,10 @@
 #include <sys/param.h>
 #include <string>
 #include <vector>
+
+#ifndef RECENT_BOOKS_TRACE
+#define RECENT_BOOKS_TRACE 0
+#endif
 
 #define PARSEBUFSIZE 1024 * 64
 
@@ -270,10 +275,12 @@ void start(void *data, const XML_Char *name, const XML_Char **attr) {
           style_publisher_horizontal_margins);
       if (last_opened > 0)
         matched->SetLastOpenedTime(last_opened);
+#if RECENT_BOOKS_TRACE
       DBG_LOGF(app, "recently-opened: read lastOpened=%lu matched=%s file=\"%s\"",
                (unsigned long)last_opened,
                matched ? "yes" : "no",
                filename);
+#endif
 
       if (current) {
         // Set this book as current.
@@ -750,8 +757,10 @@ int Prefs::Write() {
             state.style_publisher_horizontal_margins);
     if (state.last_opened > 0) {
       fprintf(fp, " lastOpened=\"%lu\"", (unsigned long)state.last_opened);
+#if RECENT_BOOKS_TRACE
       DBG_LOGF(app, "recently-opened: write lastOpened=%lu for \"%s\"",
                (unsigned long)state.last_opened, filename.c_str());
+#endif
     }
     if (it->first == current_book_key)
       fprintf(fp, " current=\"1\"");
