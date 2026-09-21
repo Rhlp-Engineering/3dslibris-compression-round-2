@@ -3,6 +3,11 @@
 #include "test_assert.h"
 
 int main() {
+  const int pitch = settings::PrefsRowPitch(8);
+  // The footer starts at y=296 and its touch target extends 8px upward.
+  test::ExpectTrue("eight style rows clear the footer touch region",
+                   7 * pitch + (pitch - 2) < 288);
+
   settings::PrefsPageContext page;
   page.from_book = false;
   page.page = 0;
@@ -16,7 +21,7 @@ int main() {
 
   page.page = 1;
   test::ExpectEq("unified general style page count",
-                 settings::PrefsPageButtonCount(page), 6);
+                 settings::PrefsPageButtonCount(page), 7);
   test::ExpectEq("unified general style page first button",
                  settings::PrefsPageButtonForSlot(page, 0),
                  PREFS_BUTTON_FONT_CONFIG);
@@ -40,10 +45,10 @@ int main() {
   page.page = 1;
   page.fixed_layout = false;
   test::ExpectEq("unified reflow style page count",
-                 settings::PrefsPageButtonCount(page), 7);
+                 settings::PrefsPageButtonCount(page), 8);
   test::ExpectEq("unified reflow style page last button",
-                 settings::PrefsPageButtonForSlot(page, 6),
-                 PREFS_BUTTON_PUBLISHER_BLOCK_MARGINS);
+                 settings::PrefsPageButtonForSlot(page, 7),
+                 PREFS_BUTTON_PUBLISHER_HORIZONTAL_MARGINS);
 
   page.fixed_layout = true;
   test::ExpectEq("unified fixed-layout page 2 count",
@@ -135,7 +140,7 @@ int main() {
                  PREFS_BUTTON_BOOKMARKS);
 
   test::ExpectEq("reflow page 2 count",
-                 settings::BookPrefsPage2ButtonCount(false), 7);
+                 settings::BookPrefsPage2ButtonCount(false), 8);
   test::ExpectEq("reflow page 2 orientation first",
                  settings::BookPrefsPage2ButtonForSlot(false, 0),
                  PREFS_BUTTON_ORIENTATION);
@@ -148,6 +153,9 @@ int main() {
   test::ExpectEq("reflow page 2 publisher margins last",
                  settings::BookPrefsPage2ButtonForSlot(false, 6),
                  PREFS_BUTTON_PUBLISHER_BLOCK_MARGINS);
+  test::ExpectEq("reflow page 2 publisher side margins last",
+                 settings::BookPrefsPage2ButtonForSlot(false, 7),
+                 PREFS_BUTTON_PUBLISHER_HORIZONTAL_MARGINS);
 
   test::ExpectEq("fixed-layout page 2 count",
                  settings::BookPrefsPage2ButtonCount(true), 3);

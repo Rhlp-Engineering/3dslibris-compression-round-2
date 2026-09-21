@@ -129,6 +129,8 @@ static std::string BuildCachePath(Book *book, const char *book_path,
       book && book->GetPublisherTextIndentEnabled() ? "i1" : "i0";
   layout_params.variant_token +=
       book && book->GetPublisherBlockMarginsEnabled() ? ":m1" : ":m0";
+  layout_params.variant_token +=
+      book && book->GetPublisherHorizontalMarginsEnabled() ? ":h1" : ":h0";
   return page_cache_utils::BuildPageCachePath(
       GetEffectiveCacheDir(), ".epc", book_path, layout_params);
 }

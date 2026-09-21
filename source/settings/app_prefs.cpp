@@ -238,6 +238,24 @@ static void TogglePublisherBlockMarginsSetting(App *app, Book *book, bool is_boo
     app->prefs->Write();
 }
 
+static void TogglePublisherHorizontalMarginsSetting(App *app, Book *book,
+                                                    bool is_book_ctx) {
+  if (!app)
+    return;
+  if (is_book_ctx && book && book->UsesTextLayoutSettings()) {
+    book->SetStylePublisherHorizontalMarginsOverride(
+        settings::NextTriStateOverride(
+            book->GetStylePublisherHorizontalMarginsOverride()));
+    app->MarkBookLayoutDirty();
+  } else {
+    app->publisher_horizontal_margins =
+        settings::ToggleSetting(app->publisher_horizontal_margins);
+    app->MarkBookLayoutDirty();
+  }
+  if (app->prefs)
+    app->prefs->Write();
+}
+
 SettingsController::SettingsController(App &app)
     : app_(app), go_to_page_dialog_(app), prefs_general_page_(0) {}
 
@@ -321,7 +339,8 @@ void SettingsController::PrefsInit() {
       "time remaining", "reopen last book", "color mode", "library view",
       "circle pad pages", "library sort", "book information", "index", "bookmarks",
       "reset settings",
-      "clear cache",        "publisher indent", "publisher margins"};
+      "clear cache",        "publisher indent", "publisher spacing",
+      "publisher sides"};
 
   for (int i = 0; i < PREFS_BUTTON_COUNT; i++) {
     app_.prefsButtons[i].Init(app_.ts.get());
@@ -379,10 +398,13 @@ void SettingsController::PrefsDraw() {
   PrefsRefreshButton(PREFS_BUTTON_LIBRARY_SORT);
   PrefsRefreshButton(PREFS_BUTTON_PUBLISHER_TEXT_INDENT);
   PrefsRefreshButton(PREFS_BUTTON_PUBLISHER_BLOCK_MARGINS);
+  PrefsRefreshButton(PREFS_BUTTON_PUBLISHER_HORIZONTAL_MARGINS);
 
   for (int slot = 0; slot < visibleCount; slot++) {
     const int button_id = EffectiveButtonForSlot(slot);
-    app_.prefsButtons[button_id].Move(5, slot * 38);
+    const int row_pitch = settings::PrefsRowPitch(visibleCount);
+    app_.prefsButtons[button_id].Resize(230, row_pitch - 2);
+    app_.prefsButtons[button_id].Move(5, slot * row_pitch);
     app_.prefsButtons[button_id].Draw(ts->screenright,
                                       slot == app_.GetPrefsSelectedIndex());
   }
@@ -1038,7 +1060,7 @@ void SettingsController::PrefsRefreshButton(int index) {
     break;
   case PREFS_BUTTON_PUBLISHER_BLOCK_MARGINS:
     app_.prefsButtons[PREFS_BUTTON_PUBLISHER_BLOCK_MARGINS].SetLabel1(
-        std::string("publisher margins"));
+        std::string("publisher spacing"));
     app_.prefsButtons[PREFS_BUTTON_PUBLISHER_BLOCK_MARGINS].SetLabel2(
         settings::PublisherSettingValueLabel(
             is_book_ctx && book, !book || book->UsesTextLayoutSettings(),
@@ -1046,6 +1068,17 @@ void SettingsController::PrefsRefreshButton(int index) {
             app_.publisher_block_margins,
             book ? book->GetPublisherBlockMarginsEnabled()
                  : app_.publisher_block_margins));
+    break;
+  case PREFS_BUTTON_PUBLISHER_HORIZONTAL_MARGINS:
+    app_.prefsButtons[PREFS_BUTTON_PUBLISHER_HORIZONTAL_MARGINS].SetLabel1(
+        std::string("publisher sides"));
+    app_.prefsButtons[PREFS_BUTTON_PUBLISHER_HORIZONTAL_MARGINS].SetLabel2(
+        settings::PublisherSettingValueLabel(
+            is_book_ctx && book, !book || book->UsesTextLayoutSettings(),
+            book ? book->GetStylePublisherHorizontalMarginsOverride() : -1,
+            app_.publisher_horizontal_margins,
+            book ? book->GetPublisherHorizontalMarginsEnabled()
+                 : app_.publisher_horizontal_margins));
     break;
   }
   app_.MarkPrefsDirty();
@@ -1112,6 +1145,7 @@ void SettingsController::ResetToDefaults() {
   app_.paraindent = 0;
   app_.publisher_text_indent = true;
   app_.publisher_block_margins = true;
+  app_.publisher_horizontal_margins = true;
   if (app_.orientation != orientation_utils::ORIENT_TURNED_LEFT)
     app_.SetOrientation(orientation_utils::ORIENT_TURNED_LEFT);
   app_.ts->SetColorMode(0);
@@ -1253,6 +1287,13 @@ void SettingsController::PrefsHandlePress() {
   if (selected_button == PREFS_BUTTON_PUBLISHER_BLOCK_MARGINS) {
     TogglePublisherBlockMarginsSetting(&app_, book, is_book_ctx);
     PrefsRefreshButton(PREFS_BUTTON_PUBLISHER_BLOCK_MARGINS);
+    app_.MarkPrefsDirty();
+    return;
+  }
+
+  if (selected_button == PREFS_BUTTON_PUBLISHER_HORIZONTAL_MARGINS) {
+    TogglePublisherHorizontalMarginsSetting(&app_, book, is_book_ctx);
+    PrefsRefreshButton(PREFS_BUTTON_PUBLISHER_HORIZONTAL_MARGINS);
     app_.MarkPrefsDirty();
     return;
   }

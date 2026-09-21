@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 #include "3ds/types.h"
 #include "shared/text_token_constants.h"
 
@@ -33,6 +34,8 @@ public:
   int pen_x = 0, pen_y = 0;
   std::string rendered_ascii;
   int clipped_glyphs = 0;
+  struct RenderedGlyph { u32 codepoint; int x, y; u16 *screen; };
+  std::vector<RenderedGlyph> rendered_glyphs;
 
   Text()
       : pixelsize(14), fgcolor(0), usefgcolor(false), usebgcolor(false),
@@ -123,6 +126,8 @@ public:
   void ClearScreen() {}
   void PrintChar(u32 c) {
     if (!capture_rendered_text) return;
+    if (c >= 32)
+      rendered_glyphs.push_back({c, pen_x, pen_y, screen});
     if (c > 32 && c < 127) {
       if (pen_y <= LogicalHeight() - margin.bottom &&
           pen_x + GetAdvance(c) <= LogicalWidth() - margin.right)

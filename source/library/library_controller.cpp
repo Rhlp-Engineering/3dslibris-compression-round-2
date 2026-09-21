@@ -351,6 +351,7 @@ static void AppendBookFromFilename(App *app, LibraryGradientContext *gradient_ct
   ctx.paragraph_indent = &app->paraindent;
   ctx.publisher_text_indent = &app->publisher_text_indent;
   ctx.publisher_block_margins = &app->publisher_block_margins;
+  ctx.publisher_horizontal_margins = &app->publisher_horizontal_margins;
   ctx.orientation = &app->orientation;
   ctx.status_reporter = app;
   ctx.draw_background = &DrawBottomGradientFromApp;
@@ -424,6 +425,7 @@ static void AppendFolderEntry(App *app, const std::string &source_dir,
   ctx.paragraph_indent = &app->paraindent;
   ctx.publisher_text_indent = &app->publisher_text_indent;
   ctx.publisher_block_margins = &app->publisher_block_margins;
+  ctx.publisher_horizontal_margins = &app->publisher_horizontal_margins;
   ctx.orientation = &app->orientation;
   ctx.status_reporter = app;
   ctx.draw_background = &DrawBottomGradientFromApp;

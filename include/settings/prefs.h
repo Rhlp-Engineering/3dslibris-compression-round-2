@@ -38,7 +38,8 @@ public:
                                     int style_line_spacing,
                                     int style_paragraph_spacing,
                                     int style_publisher_text_indent,
-                                    int style_publisher_block_margins);
+                                    int style_publisher_block_margins,
+                                    int style_publisher_horizontal_margins);
   void AddPendingCurrentBookBookmark(uint16_t page);
   void EndPendingCurrentBookRestoreEntry();
   bool ApplyPendingCurrentBookRestore();
@@ -50,6 +51,7 @@ public:
                               int style_paragraph_spacing,
                               int style_publisher_text_indent,
                               int style_publisher_block_margins,
+                              int style_publisher_horizontal_margins,
                               uint32_t last_opened);
   void BeginSavedBookBookmarks(const char *folder, const char *filename);
   void RememberSavedBookBookmark(uint16_t page);
@@ -78,6 +80,7 @@ private:
   int pending_current_style_paragraph_spacing;
   int pending_current_style_publisher_text_indent;
   int pending_current_style_publisher_block_margins;
+  int pending_current_style_publisher_horizontal_margins;
   std::vector<uint16_t> pending_current_bookmarks;
   std::unordered_map<std::string, uint32_t> last_opened_by_book_key;
   SavedBookStateMap saved_state_by_book_key;

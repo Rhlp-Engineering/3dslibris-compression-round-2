@@ -130,7 +130,7 @@ static void LogResolvedBlockMargin(
 static void ApplyPublisherBlockMargins(
     parsedata_t *p, Text *ts, const char **attr,
     const epub_css_class_map::CssClassMargins &elem_css) {
-  if (!p || !p->book || !p->book->GetPublisherBlockMarginsEnabled())
+  if (!p || !p->book || !p->book->GetPublisherHorizontalMarginsEnabled())
     return;
   book_xml_element_style::ApplyElementBlockMargins(p, ts, attr, elem_css);
 }
@@ -385,10 +385,8 @@ bool HandleBlockElementStart(
     const bool can_apply_top_margin =
         !tight_list_paragraph && !tight_block_paragraph;
     book_xml_css_style_utils::MarginTopResult mtr;
-    if (p->book->GetPublisherBlockMarginsEnabled()) {
-      mtr = ParsePublisherElementMarginTop(p, attr, elem_css);
-      ApplyPublisherBlockMargins(p, ts, attr, elem_css);
-    }
+    mtr = ParsePublisherElementMarginTop(p, attr, elem_css);
+    ApplyPublisherBlockMargins(p, ts, attr, elem_css);
     const int line_h = ts->GetHeight() + ts->linespacing;
     if (can_apply_top_margin && !after_standalone_band_image) {
       const int default_lf = 0;

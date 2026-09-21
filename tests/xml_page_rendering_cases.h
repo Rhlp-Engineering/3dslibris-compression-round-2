@@ -91,4 +91,68 @@ void TestXmlPageRenderingContinuity() {
   }
 }
 
+
+void ExpectAlignedGlyphLines(Text &text, int alignment) {
+  const std::vector<Text::RenderedGlyph> &glyphs = text.rendered_glyphs;
+  ExpectTrue("aligned text was drawn", !glyphs.empty());
+  for (size_t start = 0; start < glyphs.size();) {
+    size_t end = start + 1;
+    while (end < glyphs.size() && glyphs[end].y == glyphs[start].y &&
+           glyphs[end].screen == glyphs[start].screen)
+      end++;
+    const int width = (int)(end - start) * text.GetAdvance('A');
+    const int available = text.LogicalWidthFor(
+        glyphs[start].screen == text.screenleft) - text.margin.left -
+        text.margin.right;
+    const int offset = alignment == 1 ? (available - width) / 2
+                                     : available - width;
+    ExpectIntEq("every visual line uses its paragraph alignment",
+                glyphs[start].x, text.margin.left + std::max(0, offset));
+    start = end;
+  }
+}
+
+void TestXmlAlignedLines() {
+  for (unsigned char orientation = 0; orientation < 3; orientation++) {
+    for (int alignment : {1, 2}) {
+      for (bool coalesced : {false, true}) {
+        TestCtx tc;
+        tc.ctx.orientation = &orientation;
+        tc.paragraph_spacing = 0;
+        tc.text.display.width = 240;
+        tc.text.landscape = orientation_utils::IsLandscape(orientation);
+        tc.text.capture_rendered_text = true;
+        u16 left = 0, right = 0;
+        tc.text.screenleft = &left;
+        tc.text.screenright = &right;
+        Book book(tc.ctx);
+        parsedata_t p = MakeParseData(tc, book);
+        p.pen.y = tc.text.margin.top + tc.text.GetHeight();
+        p.coalesce_text_segments = coalesced;
+        std::string html = "<html><body><p style=\"text-align:";
+        html += alignment == 1 ? "center" : "right";
+        html += "\">A<br/><br/>BBB<br/>CC</p><p style=\"text-align:";
+        html += alignment == 1 ? "center" : "right";
+        html += "\">";
+        for (int i = 0; i < 500; i++) html += "word ";
+        html += "end</p></body></html>";
+        ExpectTrue("aligned XML parses",
+                   xml_parse_utils::ParseXmlString(html, MakeXmlOpts(&p)).ok);
+        ExpectTrue("aligned paragraph crosses pages", book.GetPageCount() > 1);
+        for (int page = 0; page < book.GetPageCount(); page++) {
+          tc.text.rendered_glyphs.clear();
+          book.GetPage(page)->Draw(&tc.text);
+          ExpectAlignedGlyphLines(tc.text, alignment);
+          if (page == 0) {
+            ExpectIntEq("alignment preserves explicit blank lines",
+                        tc.text.rendered_glyphs[1].y -
+                            tc.text.rendered_glyphs[0].y,
+                        2 * (tc.text.GetHeight() + tc.text.linespacing));
+          }
+        }
+      }
+    }
+  }
+}
+
 } // namespace

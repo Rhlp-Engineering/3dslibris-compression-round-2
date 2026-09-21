@@ -113,6 +113,7 @@ App::App()
   paraindent = 0;
   publisher_text_indent = true;
   publisher_block_margins = true;
+  publisher_horizontal_margins = true;
   colorMode = 0;
 
   // Default key mappings
