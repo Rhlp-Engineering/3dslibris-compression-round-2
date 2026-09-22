@@ -113,6 +113,46 @@ void ExpectAlignedGlyphLines(Text &text, int alignment) {
   }
 }
 
+void TestEmbeddedCssParagraphSpacing() {
+  for (int margin_em : {1, 2}) {
+    for (bool vertical : {false, true}) {
+      for (bool horizontal : {false, true}) {
+        TestCtx tc;
+        tc.paragraph_spacing = 0;
+        tc.publisher_block_margins = vertical;
+        tc.publisher_horizontal_margins = horizontal;
+        tc.text.capture_rendered_text = true;
+        u16 left = 0, right = 0;
+        tc.text.screenleft = &left;
+        tc.text.screenright = &right;
+        Book book(tc.ctx);
+        parsedata_t p = MakeParseData(tc, book);
+        p.pen.y = tc.text.margin.top + tc.text.GetHeight();
+        const std::string html = "<html><head><style>p{margin-top:" +
+            std::to_string(margin_em) + "em;margin-bottom:" +
+            std::to_string(margin_em) + "em;margin-left:2em;margin-right:2em}</style>"
+            "</head><body><p>A</p><p>B</p></body></html>";
+        for (const auto &sheet : epub_stylesheet_utils::ExtractHeadStylesheets(html))
+          epub_css_class_map::ParseCssIntoClassMap(sheet.css.data(), sheet.css.size(),
+                                                  &p.css_class_map);
+        ExpectTrue("spacing XML parses",
+                   xml_parse_utils::ParseXmlString(html, MakeXmlOpts(&p)).ok);
+        ExpectIntEq("spacing stays on one page", book.GetPageCount(), 1);
+        book.GetPage(0)->Draw(&tc.text);
+        int ay = -1, by = -1;
+        for (const auto &glyph : tc.text.rendered_glyphs) {
+          if (glyph.codepoint == 'A') ay = glyph.y;
+          if (glyph.codepoint == 'B') by = glyph.y;
+        }
+        ExpectTrue("both paragraphs drawn", ay >= 0 && by > ay);
+        const int line_step = tc.text.GetHeight() + tc.text.linespacing;
+        ExpectIntEq("CSS gap follows publisher spacing independently of sides",
+                    by - ay, (vertical ? margin_em + 1 : 2) * line_step);
+      }
+    }
+  }
+}
+
 void TestEmbeddedCssAlignedLines() {
   for (int alignment : {1, 2}) {
     TestCtx tc;

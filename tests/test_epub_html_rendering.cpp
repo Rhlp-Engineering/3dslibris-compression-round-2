@@ -414,8 +414,8 @@ void TestSuppressOnlyDoesNotCrossBlockFontScopeStart() {
   xml_parse_utils::XmlParserOptions opts = MakeXmlOpts(&p);
 
   // <p> with margin:0 followed by a font-size:200% div whose first <p> has
-  // margin-top:0.5em. Without the fix the inner paragraph receives an extra
-  // blank line from was_suppressed injection; with the fix there is none.
+  // margin-top:0.5em. The positive margin contributes one blank line; a
+  // stale suppress-only flag must not add another across the font scope.
   // Using inline styles because the test does not populate a CSS class map.
   const std::string html =
       "<html><body>"
@@ -430,11 +430,10 @@ void TestSuppressOnlyDoesNotCrossBlockFontScopeStart() {
 
   const u32 *buf = book.GetPage(0)->GetBuffer();
   const int len = book.GetPage(0)->GetLength();
-  // Exactly one block boundary newline before "Inner text" (from
-  // EnsureBlockBoundaryBeforeBlockStart). A second newline would indicate
-  // the spurious blank line from was_suppressed injection.
+  // One block boundary newline plus one blank line for the explicit margin.
+  // Any further newline would indicate stale spacing from the outer scope.
   ExpectTrue("suppress-font-scope: no extra blank line before inner paragraph",
-             CountBufValue(buf, len, '\n') == 1);
+             CountBufValue(buf, len, '\n') == 2);
 }
 
 void TestCssSpacingNearBottomAdvancesScreen() {
@@ -1180,6 +1179,7 @@ void TestLargeFontPaginationDoesNotDropTextAcrossPages() {
 #include "xml_page_rendering_cases.h"
 
 int main() {
+  TestEmbeddedCssParagraphSpacing();
   TestEmbeddedCssAlignedLines();
   TestXmlAlignedLines();
   TestXmlPageRenderingContinuity();
