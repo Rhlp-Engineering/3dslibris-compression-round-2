@@ -4,11 +4,8 @@
     (PrepareForShutdown, AptHookCallback, HandleAppletHook,
     HandleAppletSuspend, HandleAppletResume).
 
-    See the comments in HandleAppletHook for why logging and SD I/O are
-    forbidden inside the hook callback — touching this file requires
-    understanding the HOME menu acknowledgment timing window.
-
-    No behavior change — pure code motion.
+    Suspend hooks only signal workers. Joins, logging and resource cleanup
+    are deferred until control returns to the main loop.
 */
 
 #include "app/app.h"
@@ -82,22 +79,17 @@ void App::AptHookCallback(APT_HookType hook, void *param)
 
 void App::HandleAppletHook(APT_HookType hook)
 {
-  // Do NOT log here. This callback runs on the APT system thread, not the main
-  // thread. Calling DBG_LOGF would access nav_/reader_state_ without
-  // synchronization and would invoke PrintStatus, which does LightLock + fflush
-  // (SD card I/O) from the hook thread — the same class of bug documented in
-  // the APTHOOK_ONEXIT comment below. Lifecycle events are logged in
-  // HandleAppletSuspend/HandleAppletResume on the main thread instead.
+  // libctru invokes suspend/sleep hooks synchronously from aptMainLoop.
+  // Its body will not run again until HOME/sleep returns. Prepare here, but
+  // keep this path free of SD writes, rendering, joins and cache destruction.
   switch (hook)
   {
   case APTHOOK_ONSUSPEND:
-    // Signal suspend state to the main thread. All browser/reader mutations
-    // are deferred to HandleAppletSuspend() on the main thread to avoid
-    // cross-thread writes to nav_ and reader state, and to avoid dereferencing
-    // Book pointers from the APT hook thread.
+  case APTHOOK_ONSLEEP:
     lifecycle_state_.SetSuspended(true);
     lifecycle_state_.SetResumePending(false);
-    lifecycle_state_.SetSuspendHandled(false);
+    OnReaderAppletSuspendRequested();
+    lifecycle_state_.SetSuspendHandled(true);
     break;
   case APTHOOK_ONRESTORE:
   case APTHOOK_ONWAKEUP:
@@ -105,11 +97,7 @@ void App::HandleAppletHook(APT_HookType hook)
     lifecycle_state_.SetResumePending(true);
     break;
   case APTHOOK_ONEXIT:
-    // Only set the quit flag here. PersistPrefs() writes to the SD card and
-    // must NOT run inside an APT hook callback — doing so blocks the HOME Menu
-    // from receiving the acknowledgment within its expected timing window,
-    // which can cause the HOME Menu process to crash. Prefs are saved in
-    // PrepareForShutdown() after aptMainLoop() returns.
+    // Persist preferences in PrepareForShutdown after aptMainLoop returns.
     lifecycle_state_.SetExitRequested(true);
     break;
   default:
@@ -121,43 +109,18 @@ void App::HandleAppletSuspend()
 {
   if (lifecycle_state_.IsSuspendHandled())
     return;
-#ifdef DSLIBRIS_DEBUG
-  DBG_LOGF(this,
-           "APPLET suspend begin mode=%d current_session=%u opening_session=%u",
-           (int)nav_.mode, reader_state_.current_book_session_id,
-           reader_state_.opening.session_id);
-#endif
+  OnReaderAppletSuspendRequested();
   lifecycle_state_.SetSuspendHandled(true);
-  nav_.browser.wait_input_release = true;
-  nav_.browser.last_interaction_ms = osGetTime();
-  ResetPageRepeat();
-  const size_t removed_jobs = PauseBrowserJobs();
-#ifndef DSLIBRIS_DEBUG
-  (void)removed_jobs;
-#endif
-#ifdef DSLIBRIS_DEBUG
-  DBG_LOGF(this, "APPLET suspend workers paused removed_jobs=%u",
-           (unsigned)removed_jobs);
-#endif
-  OnReaderAppletSuspended();
-  // Free FreeType glyph bitmap cache to release RAM for the HOME menu.
-  // Bounded at 512 glyphs per face × multiple faces × per-glyph buffer alloc
-  // — can be hundreds of KB. Cache re-warms transparently on resume.
-  if (ts)
-    ts->ClearCache();
-#ifdef DSLIBRIS_DEBUG
-  DBG_LOGF(this,
-           "APPLET suspend end mode=%d current_session=%u opening_session=%u",
-           (int)nav_.mode,
-           reader_state_.current_book_session_id,
-           reader_state_.opening.session_id);
-#endif
 }
 
 void App::HandleAppletResume()
 {
   if (!lifecycle_state_.IsResumePending())
     return;
+#ifdef DSLIBRIS_DEBUG
+  DBG_LOGF(this, "APPLET resume prepared_before_wait=%u",
+           lifecycle_state_.IsSuspendHandled() ? 1u : 0u);
+#endif
   lifecycle_state_.SetResumePending(false);
   lifecycle_state_.SetSuspendHandled(false);
   nav_.browser.wait_input_release = true;

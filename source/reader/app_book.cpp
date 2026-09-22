@@ -87,89 +87,20 @@ void ReaderController::ClearDeferredRelayoutState()
 
 void ReaderController::OnAppletSuspendRequested()
 {
+  // Called synchronously from the APT hook: signal only. In-progress reflow
+  // and opening state remain owned by their workers across OS suspension.
   Book *bookcurrent_ = app_.GetCurrentBook();
-  Book *opening_book = app_.GetOpeningBook();
   app_.SetPdfTouchDragActive(false);
   app_.SetPdfTouchLastX(-1);
   app_.SetPdfTouchLastY(-1);
   app_.SetPdfDeferredReadyAtMs(0);
   if (bookcurrent_)
-    book_renderer::SetFixedLayoutViewportInteraction(bookcurrent_, false);
-  if (opening_book)
-  {
-    opening_book->RequestAbortOpen();
-  }
+    bookcurrent_->SuspendFixedLayoutWorkers();
 }
 
 void ReaderController::OnAppletSuspended()
 {
-  Book *bookcurrent_ = app_.GetCurrentBook();
-  Book *opening_book = app_.GetOpeningBook();
-#ifdef DSLIBRIS_DEBUG
-  DBG_LOGF(&app_,
-           "[APT][SUSPEND] entry mode=%d has_current=%d has_opening=%d",
-           (int)app_.GetMode(),
-           bookcurrent_ ? 1 : 0,
-           opening_book ? 1 : 0);
-#endif
-  app_.SetPdfTouchDragActive(false);
-  app_.SetPdfTouchLastX(-1);
-  app_.SetPdfTouchLastY(-1);
-  app_.SetPdfDeferredReadyAtMs(0);
-  // Persist progress on suspend from the main thread so resume can continue
-  // from the latest page even if the app is later terminated externally.
-  TryPersistProgress(bookcurrent_, true);
-  if (bookcurrent_)
-  {
-    book_renderer::SetFixedLayoutViewportInteraction(bookcurrent_, false);
-    book_renderer::CancelFixedLayoutDeferredWork(bookcurrent_);
-    bookcurrent_->SuspendFixedLayoutWorkers();
-    // Reflow worker (EPUB/MOBI/FB2/...) on core 1 — same HOME-panic risk as
-    // MuPDF/CBZ workers when left alive across suspend. Signal-only; the
-    // join completes on resume.
-    bookcurrent_->SignalReflowWorkerShutdown();
-  }
-  if (!opening_book)
-    return;
-  book_renderer::CancelFixedLayoutDeferredWork(opening_book);
-  if (reader_suspend_policy_utils::ShouldKeepOpeningDuringSuspend(
-          true, opening_book->IsAsyncReflowOpenPending()))
-  {
-    // The OS suspends all threads (including the core-1 worker) while the
-    // HOME menu is active. Leave the opening in progress so it completes
-    // transparently on resume — no blocking join, no state teardown.
-#ifdef DSLIBRIS_DEBUG
-    DBG_LOGF(&app_,
-             "BOOK suspend: keeping async open alive session=%u book=%s",
-             app_.GetOpeningSessionId(),
-             opening_book->GetFileName() ? opening_book->GetFileName() : "");
-#endif
-    return;
-  }
-#ifdef DSLIBRIS_DEBUG
-  DBG_LOGF(&app_,
-           "BOOK suspend: cancel opening session=%u book=%s",
-           app_.GetOpeningSessionId(),
-           opening_book->GetFileName() ? opening_book->GetFileName() : "");
-#endif
-  opening_book->RequestAbortOpen();
-  // Suspend path: use signal-only shutdown. CancelAsyncReflowOpen blocks
-  // joining the worker (100ms loops, potentially seconds mid-parse), which
-  // delays HandleAppletSuspend past the HOME menu's acknowledgment window.
-  opening_book->SignalReflowWorkerShutdown();
-  app_.SetOpeningPending(false);
-  app_.SetOpeningBook(NULL);
-  app_.SetOpeningSessionId(0);
-  app_.SetOpeningNeedsRelayout(false);
-  app_.SetOpeningOldPageCount(0);
-  app_.SetOpeningOldPosition(0);
-  app_.MutableOpeningOldBookmarks().clear();
-  app_.SetOpeningStartedAtMs(0);
-  if (app_.GetMode() == AppMode::Opening)
-  {
-    app_.SetMode(AppMode::Browser);
-    app_.SetBrowserDirty(true);
-  }
+  OnAppletSuspendRequested();
 }
 
 void ReaderController::OnAppletResumed()

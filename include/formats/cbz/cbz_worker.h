@@ -9,6 +9,7 @@ enum class CbzPreloadPumpResult {
 };
 
 void InitCbzWorker(Book::CbzState *cbz_state);
+void SignalCbzWorkerShutdown(Book::CbzState *cbz_state);
 void ShutdownCbzWorker(Book::CbzState *cbz_state);
 CbzPreloadPumpResult PumpCbzPreloadWorker(Book::CbzState *cbz_state,
                                           int current_page);
