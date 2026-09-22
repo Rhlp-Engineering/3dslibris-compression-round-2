@@ -80,18 +80,15 @@ void ReleaseMuPdfMemoryForSuspendImpl(Book::MuPdfState *mupdf_state) {
 void CancelMuPdfIncrementalRenderState(Book::MuPdfState *mupdf_state) {
   if (!mupdf_state)
     return;
+  if (mupdf_state->worker &&
+      __atomic_load_n(&mupdf_state->worker->job_pending, __ATOMIC_ACQUIRE)) {
+    // A timeout does not stop a strip renderer. Join before releasing its
+    // pixels or display list; only the worker may acknowledge job completion.
+    // This path must not run inside the APT suspend hook.
+    ShutdownMuPdfWorker(mupdf_state);
+    mupdf_state->worker_init_attempted = false;
+  }
   if (mupdf_state->worker && mupdf_state->worker->job_submitted) {
-    if (__atomic_load_n(&mupdf_state->worker->job_pending, __ATOMIC_ACQUIRE)) {
-      // Wait briefly for the current strip render (typically < 50ms).
-      // Bounded to avoid blocking HOME button acknowledgment indefinitely.
-      const u64 deadline_ms = osGetTime() + 100;
-      while (__atomic_load_n(&mupdf_state->worker->job_pending, __ATOMIC_ACQUIRE) &&
-             osGetTime() < deadline_ms) {
-        svcSleepThread(2000000LL); // 2ms
-      }
-      // Force-clear pending in case of timeout so the next render can start.
-      __atomic_store_n(&mupdf_state->worker->job_pending, false, __ATOMIC_RELEASE);
-    }
     LightEvent_Clear(&mupdf_state->worker->done_event);
     mupdf_state->worker->job_submitted = false;
     mupdf_state->worker->job_strip_y0 = 0;
@@ -117,6 +114,7 @@ bool PromoteMuPdfAdjacentSlotIfMatching(Book::MuPdfState *mupdf_state,
   if (!slot)
     return false;
 
+  CancelMuPdfIncrementalRenderState(mupdf_state);
   ResetBitmapCache(&mupdf_state->current_preview);
   ResetBitmapCache(&mupdf_state->current_interactive_tile);
   mupdf_state->current_preview = slot->preview;
@@ -133,7 +131,6 @@ bool PromoteMuPdfAdjacentSlotIfMatching(Book::MuPdfState *mupdf_state,
   mupdf_state->final_cache_pending =
       app_flow_utils::MuPdfWantsFinalQualityRender(
           mupdf_state->document_kind);
-  CancelMuPdfIncrementalRenderState(mupdf_state);
   return true;
 }
 
@@ -154,6 +151,7 @@ bool EnsureMuPdfDisplayListForPage(Book::MuPdfState *mupdf_state,
     return true;
   }
 
+  CancelMuPdfIncrementalRenderState(mupdf_state);
   if (mupdf_state->cached_display_list && mupdf_state->ctx) {
     fz_drop_display_list(mupdf_state->ctx, mupdf_state->cached_display_list);
     mupdf_state->cached_display_list = NULL;
