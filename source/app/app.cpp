@@ -1,3 +1,4 @@
+#include "shared/fixed_layout_perf.h"
 /*
     3dslibris - app.cpp
     Adapted from dslibris for Nintendo 3DS.
@@ -280,6 +281,7 @@ bool App::PresentIfDirty()
   {
     gfxFlushBuffers();
     gfxSwapBuffers();
+    fixed_perf::Presented();
     return true;
   }
   return false;

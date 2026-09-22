@@ -1,3 +1,4 @@
+#include "shared/fixed_layout_perf.h"
 #include "book/book.h"
 #include "formats/cbz/cbz_archive.h"
 #include "formats/cbz/cbz_decode.h"
@@ -203,26 +204,32 @@ bool EnsureCbzSourceLoaded(Book::CbzState *cbz_state, int page_index,
   if (CbzSourceValid(cbz_state->current_source, page_index, zoom_index))
     return true;
 
+  fixed_perf::Timer perf_read(&cbz_state->entries, page_index, zoom_index, "cbz.read_zip");
   std::vector<unsigned char> bytes;
   if (!ReadCbzArchiveEntryBytes(cbz_state->archive_path,
                                 cbz_state->entries[(size_t)page_index], &bytes,
                                 format_limits::kMaxCbzPageEntryBytes)) {
+    perf_read.End(0);
     cbz_state->last_error = GetLastCbzArchiveError();
     cbz_state->failed_page = page_index;
     return false;
   }
 
+  perf_read.End(1, bytes.size());
+  fixed_perf::Timer perf_decode(&cbz_state->entries, page_index, zoom_index, "cbz.decode");
   CbzDecodedPage decoded;
   int used_zoom_index = -1;
   if (!DecodeCbzPageImageWithFallback(
           bytes, zoom_index, cbz_state->target_top_width,
           cbz_state->target_top_height, &decoded,
                                       &used_zoom_index)) {
+    perf_decode.End(0, bytes.size());
     cbz_state->last_error = GetLastCbzDecodeError();
     cbz_state->failed_page = page_index;
     return false;
   }
 
+  perf_decode.End(1, bytes.size(), decoded.source_bitmap.width, decoded.source_bitmap.height);
   cbz_state->failed_page = -1;
   cbz_state->logged_failed_page = -1;
   cbz_state->last_error.clear();
@@ -255,12 +262,15 @@ bool EnsureCbzPreviewCache(Book::CbzState *cbz_state, int page_index) {
               2 * fixed_layout_preview::kPadding,
           cbz_state->target_bottom_height -
               2 * fixed_layout_preview::kPadding);
+  fixed_perf::Timer perf_scale(&cbz_state->entries, page_index, cbz_state->viewport.zoom_index, "cbz.scale_preview");
   CbzBitmap scaled;
   if (!ScaleCbzBitmap(cbz_state->current_source.bitmap,
                       std::max(1, preview_layout.width),
                       std::max(1, preview_layout.height), true, &scaled)) {
+    perf_scale.End(0);
     return false;
   }
+  perf_scale.End(1, scaled.pixels.size()*sizeof(u16), scaled.width, scaled.height);
 
   cbz_state->current_preview.page = page_index;
   cbz_state->current_preview.zoom_index = -1;
@@ -294,14 +304,17 @@ bool EnsureCbzInteractiveCache(Book::CbzState *cbz_state, int page_index) {
       1, std::min(cbz_state->current_source.bitmap.height,
                   (int)(cbz_state->page_height * fit_scale * zoom + 0.5f)));
 
+  fixed_perf::Timer perf_scale(&cbz_state->entries, page_index, cbz_state->viewport.zoom_index, "cbz.scale_interactive");
   CbzBitmap scaled;
   // The interactive cache is for drag/page-turn responsiveness, not final
   // quality. Use the fast scaler here and keep HQ filtering only at blit time
   // when the viewer is idle.
   if (!ScaleCbzBitmap(cbz_state->current_source.bitmap, target_width,
                       target_height, false, &scaled)) {
+    perf_scale.End(0);
     return false;
   }
+  perf_scale.End(1, scaled.pixels.size()*sizeof(u16), scaled.width, scaled.height);
 
   cbz_state->current_interactive.page = page_index;
   cbz_state->current_interactive.zoom_index = cbz_state->viewport.zoom_index;
@@ -467,6 +480,9 @@ void Book::DrawCurrentCbzView(Text *ts) {
 
   const int page_index = ClampCbzPageIndex(GetPosition(), cbz_state->page_count);
   SetPosition(page_index);
+  fixed_perf::BeginView(&cbz_state->entries, "CBZ", GetFileName(), page_index,
+                       cbz_state->viewport.zoom_index,
+                       cbz_state->target_top_width, cbz_state->target_top_height);
 
   if (cbz_state->current_preview.page != page_index)
     ResetCbzBitmapCache(&cbz_state->current_preview);
@@ -539,6 +555,7 @@ void Book::DrawCurrentCbzView(Text *ts) {
   }
   DrawCbzPreviewPanel(this, ts, cbz_state, page_index, preview_layout,
                       viewport);
+  fixed_perf::Drawn(has_interactive ? 2 : 1);
 }
 
 void Book::SetCbzViewportInteraction(bool active) {
