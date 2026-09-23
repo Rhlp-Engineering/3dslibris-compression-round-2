@@ -1,4 +1,5 @@
 #include "formats/cbz/cbz_archive.h"
+#include "shared/fixed_layout_perf.h"
 
 #include "formats/common/zip_read_utils.h"
 #include "formats/common/xml_parse_utils.h"
@@ -298,23 +299,41 @@ bool ReadCbzArchiveEntryBytes(const std::string &archive_path,
   out->clear();
   SetLastCbzArchiveError("");
 
+  // Entry identity is separate from the viewer identity. Preserve both names
+  // so reads for covers/prefetch can also be attributed without global state.
+  fixed_perf::Document(&entry, "CBZ_ZIP", archive_path.c_str());
+  fixed_perf::Document(&entry, "CBZ_ENTRY", entry.path.c_str());
+  fixed_perf::Timer perf_open(&entry, -1, -1, "cbz.zip_open");
   ScopedZipArchive archive(archive_path);
+  perf_open.End(archive.ok() ? 1 : 0);
   if (!archive.ok()) {
     SetLastCbzArchiveError("unable to reopen CBZ archive");
     return false;
   }
 
-  if (entry.offset != 0 && unzSetOffset(archive.uf, entry.offset) == UNZ_OK) {
-    if (ReadLocatedZipEntry(archive.uf, out, max_bytes))
+  const auto read_entry = [&]() {
+    fixed_perf::Timer perf_read(&entry, -1, -1, "cbz.zip_read_inflate");
+    const bool ok = ReadLocatedZipEntry(archive.uf, out, max_bytes);
+    perf_read.End(ok ? 1 : 0, out->size());
+    return ok;
+  };
+  if (entry.offset != 0) {
+    fixed_perf::Timer perf_locate(&entry, -1, -1, "cbz.zip_locate_offset");
+    const int rc = unzSetOffset(archive.uf, entry.offset);
+    perf_locate.End(rc == UNZ_OK ? 1 : 0);
+    if (rc == UNZ_OK && read_entry())
       return true;
   }
 
-  if (unzLocateFile(archive.uf, entry.path.c_str(), 2) != UNZ_OK) {
+  fixed_perf::Timer perf_locate(&entry, -1, -1, "cbz.zip_locate_name");
+  const int rc = unzLocateFile(archive.uf, entry.path.c_str(), 2);
+  perf_locate.End(rc == UNZ_OK ? 1 : 0);
+  if (rc != UNZ_OK) {
     SetLastCbzArchiveError("zip entry locate failed");
     return false;
   }
 
-  return ReadLocatedZipEntry(archive.uf, out, max_bytes);
+  return read_entry();
 }
 
 const char *GetLastCbzArchiveError() {

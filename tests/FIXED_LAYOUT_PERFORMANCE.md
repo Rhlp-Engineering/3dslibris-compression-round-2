@@ -34,3 +34,13 @@ Use `doc` and the filename mapping to associate records. CBZ opening uses a sepa
 `bytes` and `size` describe the relevant payload/output; strip bytes describe the shared destination buffer, not additional allocation per strip. Prefetch scaling size describes the interactive output. Memory rows sample heap usage/free space, free linear memory and free memory regions after presentation, in bytes. Region free space is different from allocator free space. These are snapshots, **not peak-memory measurements**.
 
 Workers enqueue records in a fixed 64-event RAM queue. The main thread writes them after presentation; workers do not write these logs to SD. `PERF dropped=N` means the capture is incomplete. Debug logging itself adds overhead, especially on slow SD cards. Compare equivalent debug captures; emulator timings do not predict console performance. Existing lifecycle/error logs remain available for crash diagnosis.
+
+## Zoom reuse and ZIP breakdown
+
+When zooming a PDF on the same page, the display list is retained. Expect new raster/conversion work but no new `pdf.display_list` construction until the page changes or the document/view state is reset.
+
+`cbz.reuse_source` records a zoom increase served from an existing decoded bitmap with sufficient width and height. Its `us=0` is a marker, not a measured duration. `size` is the reused source size. Such a change should not need `cbz.read_zip` or `cbz.decode`. Other zoom increases can still require a larger decode; the optimization must not reduce sharpness.
+
+ZIP reads additionally emit `cbz.zip_open`, `cbz.zip_locate_offset` (or `cbz.zip_locate_name`) and `cbz.zip_read_inflate`. The latter includes entry metadata, opening the compressed entry, reading/inflating it and closing the entry. Closing the archive itself remains included only in the outer `cbz.read_zip` timer. These nested stages must not be added to that outer total.
+
+ZIP subphases have a separate entry identity (`doc`, page 0, zoom -1). Two mapping records identify the archive (`CBZ_ZIP`) and entry (`CBZ_ENTRY`) for that identity. They also cover reads outside the viewer, such as cover loading. The offset path can fail and then succeed by name; an individual `ok=0` does not necessarily mean the entire page failed. The extra debug lines add logging overhead after presentation and can affect subsequent timing.
