@@ -21,7 +21,9 @@ struct Book {
     fz_context *ctx = &context;
     fz_document *doc = &document;
     IStatusReporter *reporter = nullptr;
-    Cache current_preview;
+    Cache current_preview, current_interactive_tile, current_final_zoom;
+    Cache prev_slot, next_slot;
+    bool final_cache_pending = true;
     float page_width = 600, page_height = 900;
     int target_bottom_width = 240, target_bottom_height = 320;
     app_flow_utils::MuPdfDocumentKind document_kind = app_flow_utils::MuPdfDocumentKind::Pdf;
@@ -46,6 +48,9 @@ bool RenderMuPdfBitmap(fz_context *, fz_document *, int p, float, RenderedMuPdfB
 }
 void ComputeBitmapContentBoundsNormalized(const RenderedMuPdfBitmap &, float *, float *, float *, float *) {}
 void StoreBitmapCache(Cache *c, int p, int, float, float, float, float, RenderedMuPdfBitmap *) { c->page = p; }
+void ResetBitmapCache(Cache *c) { c->page = -1; }
+void ResetAdjacentSlot(Cache *c, fz_context *) { c->page = -1; }
+void ResetMuPdfRenderFailureState(Book::MuPdfState *) {}
 #include "mupdf_preview_under_test.inc"
 int main() {
   Book::MuPdfState s;
@@ -54,6 +59,14 @@ int main() {
   fz_display_list *list = nullptr;
   assert(EnsureMuPdfDisplayListForPage(&s, 0, &list));
   assert(list == s.cached_display_list && list->page == 0);
+  s.current_interactive_tile.page = 0;
+  s.current_final_zoom.page = 0;
+  ResetMuPdfDeferredCachesForSynchronousRender(&s);
+  assert(s.cached_display_list == list && drops == 0 && "zoom must preserve page interpretation");
+  assert(s.cached_display_list_page == 0 && s.current_preview.page == 0);
+  assert(s.current_interactive_tile.page == -1 && s.current_final_zoom.page == -1);
+  assert(cancels > 0 && !s.final_cache_pending);
+
   assert(EnsureCurrentMuPdfPreviewCache(&s, 0) && renders == 1);
   // Rebuilding just the bitmap (e.g. geometry) can reuse the same list.
   s.current_preview.page = -1;
