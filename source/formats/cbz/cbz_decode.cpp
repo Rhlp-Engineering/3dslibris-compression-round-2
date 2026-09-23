@@ -309,19 +309,24 @@ bool ScaleCbzBitmap(const CbzBitmap &src, int dst_width, int dst_height,
   out->height = dst_height;
   out->pixels.assign((size_t)dst_width * (size_t)dst_height, 0);
 
+  if (!high_quality) {
+    // Compute each column once instead of dividing for every pixel on ARM11.
+    // The temporary table costs four bytes per output column, not per pixel.
+    std::vector<int> source_x((size_t)dst_width);
+    for (int x = 0; x < dst_width; x++)
+      source_x[x] = (x * src.width) / dst_width;
+    for (int y = 0; y < dst_height; y++) {
+      const int src_y = (y * src.height) / dst_height;
+      const uint16_t *row = &src.pixels[(size_t)src_y * src.width];
+      uint16_t *dst = &out->pixels[(size_t)y * dst_width];
+      for (int x = 0; x < dst_width; x++)
+        dst[x] = row[source_x[x]];
+    }
+    return true;
+  }
+
   for (int y = 0; y < dst_height; y++) {
     for (int x = 0; x < dst_width; x++) {
-      if (!high_quality) {
-        const int src_x =
-            std::min(src.width - 1, (x * src.width) / std::max(1, dst_width));
-        const int src_y = std::min(src.height - 1,
-                                   (y * src.height) / std::max(1, dst_height));
-
-        out->pixels[(size_t)y * (size_t)dst_width + (size_t)x] =
-            src.pixels[(size_t)src_y * (size_t)src.width + (size_t)src_x];
-        continue;
-      }
-
       const float src_xf =
           (((float)x + 0.5f) * (float)src.width / (float)dst_width) - 0.5f;
       const float src_yf =

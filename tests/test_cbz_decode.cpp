@@ -41,11 +41,31 @@ void TestDecodePath(const char *path) {
   ExpectTrue("scaled pixels not empty", !scaled.pixels.empty());
 }
 
+// Compare against the direct coordinate formula across non-integer ratios,
+// single-pixel axes, upscales and downscales. Pixel values must not change.
+void TestNearestScaleCoordinates() {
+  const int sizes[] = {1, 2, 3, 7, 16, 31};
+  for (int sw : sizes) for (int sh : sizes) {
+    CbzBitmap src;
+    src.width = sw; src.height = sh;
+    for (int i = 0; i < sw*sh; ++i) src.pixels.push_back((uint16_t)(i*67));
+    for (int dw : sizes) for (int dh : sizes) {
+      CbzBitmap out;
+      ExpectTrue("nearest scale", ScaleCbzBitmap(src, dw, dh, false, &out));
+      ExpectTrue("nearest dimensions", out.width == dw && out.height == dh);
+      for (int y = 0; y < dh; ++y) for (int x = 0; x < dw; ++x)
+        ExpectTrue("nearest exact pixel", out.pixels[y*dw+x] ==
+                   src.pixels[(y*sh/dh)*sw+x*sw/dw]);
+    }
+  }
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
   if (argc != 3)
     Fail("usage: test_cbz_decode <sample.png> <sample.jpg>");
+  TestNearestScaleCoordinates();
   TestDecodePath(argv[1]);
   TestDecodePath(argv[2]);
   return 0;
