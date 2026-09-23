@@ -24,12 +24,28 @@ static const u32 kCbzInteractiveDeferredDelayMs = 180;
 static const u32 kCbzPreloadDeferredDelayMs = 600;
 
 inline bool CbzSourceValid(const Book::CbzState::PageBitmap &page_bitmap,
-                           int page_index, int zoom_index) {
-  return page_bitmap.page == page_index &&
-         page_bitmap.zoom_index >= zoom_index &&
-         page_bitmap.bitmap.width > 0 &&
-         page_bitmap.bitmap.height > 0 &&
-         !page_bitmap.bitmap.pixels.empty();
+                           int page_index, int zoom_index,
+                           int target_width, int target_height) {
+  if (page_bitmap.page != page_index || page_bitmap.bitmap.width <= 0 ||
+      page_bitmap.bitmap.height <= 0 || page_bitmap.bitmap.pixels.empty())
+    return false;
+  if (page_bitmap.zoom_index >= zoom_index)
+    return true;
+  if (page_bitmap.original_width <= 0 || page_bitmap.original_height <= 0 ||
+      target_width <= 0 || target_height <= 0)
+    return false;
+
+  // JPEG subsampling can return more pixels than the requested zoom needs.
+  // Reuse them only if BOTH dimensions cover the new target; never require
+  // more than the original image contains. Keeping the unrounded target is
+  // conservative at fractional boundaries (at worst we decode once more).
+  const float fit_scale = std::min(
+      (float)target_width / page_bitmap.original_width,
+      (float)target_height / page_bitmap.original_height);
+  const float scale = std::min(1.0f,
+      fit_scale * pdf_view_utils::ZoomForIndex(zoom_index));
+  return page_bitmap.bitmap.width >= page_bitmap.original_width * scale &&
+         page_bitmap.bitmap.height >= page_bitmap.original_height * scale;
 }
 
 inline int ClampCbzPageIndex(int page_index, u16 page_count) {
@@ -201,8 +217,17 @@ bool EnsureCbzSourceLoaded(Book::CbzState *cbz_state, int page_index,
     return false;
   if (cbz_state->failed_page == page_index)
     return false;
-  if (CbzSourceValid(cbz_state->current_source, page_index, zoom_index))
+  if (CbzSourceValid(cbz_state->current_source, page_index, zoom_index,
+                     cbz_state->target_top_width, cbz_state->target_top_height)) {
+    if (zoom_index > cbz_state->current_source.zoom_index) {
+      const CbzBitmap &bitmap = cbz_state->current_source.bitmap;
+      fixed_perf::Record(&cbz_state->entries, page_index, zoom_index,
+                         "cbz.reuse_source", 0, 1,
+                         bitmap.pixels.size() * sizeof(u16),
+                         bitmap.width, bitmap.height);
+    }
     return true;
+  }
 
   fixed_perf::Timer perf_read(&cbz_state->entries, page_index, zoom_index, "cbz.read_zip");
   std::vector<unsigned char> bytes;

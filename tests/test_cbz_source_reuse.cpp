@@ -40,7 +40,8 @@ bool DecodeCbzPageImage(const std::vector<unsigned char> &, int z, int, int, Cbz
   ++decodes;
   if (z > max_decode_zoom) return false;
   d->original_width = 600; d->original_height = 900;
-  d->source_bitmap.width = 240 * (z+1); d->source_bitmap.height = 360 * (z+1);
+  d->source_bitmap.width = z < 4 ? 400 : 600;
+  d->source_bitmap.height = z < 4 ? 600 : 900;
   d->source_bitmap.pixels.assign(d->source_bitmap.width*d->source_bitmap.height, 42);
   return true;
 }
@@ -61,6 +62,18 @@ int main() {
   assert(EnsureCbzInteractiveCache(&s, 0) && reads == 2);
   assert(EnsureCbzPreviewCache(&s, 1));
   assert(EnsureCbzInteractiveCache(&s, 1) && reads == 3);
+  s.viewport.zoom_index = 6;
+  assert(EnsureCbzInteractiveCache(&s, 1) && reads == 3 && "full-resolution source must survive a zoom increase");
+  Book::CbzState bucket;
+  bucket.viewport.zoom_index = 2;
+  assert(EnsureCbzPreviewCache(&bucket, 0));
+  const int bucket_reads = reads;
+  bucket.viewport.zoom_index = 3;
+  assert(EnsureCbzInteractiveCache(&bucket, 0) && reads == bucket_reads && "decoded dimensions already cover this zoom");
+  // A wide source is insufficient if its height does not cover the new zoom.
+  bucket.current_source.bitmap.height = 100;
+  bucket.current_interactive.page = -1;
+  assert(EnsureCbzInteractiveCache(&bucket, 0) && reads == bucket_reads + 1);
   // The deferred path still decodes a cheap preview, not full zoom.
   debug_runtime::sync = false;
   Book::CbzState deferred;
