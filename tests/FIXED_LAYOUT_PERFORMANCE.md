@@ -44,3 +44,27 @@ When zooming a PDF on the same page, the display list is retained. Expect new ra
 ZIP reads additionally emit `cbz.zip_open`, `cbz.zip_locate_offset` (or `cbz.zip_locate_name`) and `cbz.zip_read_inflate`. The latter includes entry metadata, opening the compressed entry, reading/inflating it and closing the entry. Closing the archive itself remains included only in the outer `cbz.read_zip` timer. These nested stages must not be added to that outer total.
 
 ZIP subphases have a separate entry identity (`doc`, page 0, zoom -1). Two mapping records identify the archive (`CBZ_ZIP`) and entry (`CBZ_ENTRY`) for that identity. They also cover reads outside the viewer, such as cover loading. The offset path can fail and then succeed by name; an individual `ok=0` does not necessarily mean the entire page failed. The extra debug lines add logging overhead after presentation and can affect subsequent timing.
+
+## Drawing and presentation breakdown
+
+The following detail is emitted only before the first presentation of a view (document/page/zoom/target size). Repeated idle frames and later quality refinements do not emit it. This avoids per-frame logging; existing quality milestones remain unchanged.
+
+| Stage | Scope |
+| --- | --- |
+| `pdf.prepare` | Cache invalidation and page metrics before ensuring the preview |
+| `pdf.ensure_preview` | Preview lookup/build, including nested `pdf.preview_total` if rendering is needed |
+| `pdf.ensure_interactive` | Synchronous main-image lookup/build, including nested `pdf.interactive_total` |
+| `pdf.view_setup` | Viewport, preview geometry and text-style setup |
+| `pdf.blit_main` | Clear and draw the main reading screen, including scaling/filtering |
+| `pdf.preview_background` | Clear the overview screen, draw its gradient and paper background |
+| `pdf.blit_preview` | Scale/copy the overview image |
+| `pdf.overlay` | Preview border, viewport indicator and restoration of text state |
+| `pdf.draw_total` | Enclosing duration of the PDF drawing phases above |
+| `draw_to_present` | From `Drawn` to the buffer swap, including remaining reader/UI work and presentation |
+| `present.framebuffer_copy` | Dirty-screen check and copy of software screens into the framebuffer |
+| `present.flush` | CPU time in `gfxFlushBuffers` |
+| `present.swap` | CPU time in `gfxSwapBuffers` (not physical display latency) |
+
+The `present.*` and `draw_to_present` stages apply to CBZ too. A framebuffer-copy record with `ok=0` means no buffer was written on that attempt, not necessarily a failure. The PDF phase records describe elapsed work; renderer failures retain their existing nested error records.
+
+Compare `pdf.draw_total + draw_to_present` with `first_present` (small differences come from instrumentation and setup boundaries). Do not add enclosed phases or render totals again. To isolate the old unexplained gap, inspect `pdf.blit_main`, the three overview/overlay phases, then `draw_to_present`; within the latter, subtract the `present.*` durations to estimate the remaining reader/UI work. No measured interval should automatically be interpreted as an intentional delay.

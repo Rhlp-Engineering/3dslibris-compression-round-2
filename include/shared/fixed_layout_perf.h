@@ -11,6 +11,9 @@ void Record(const void *doc, int page, int zoom, const char *stage,
             int height = 0);
 void BeginView(const void *doc, const char *format, const char *file, int page,
                int zoom, int width, int height);
+// Main-thread only; detailed stages stop after the first presentation.
+void ViewStage(const char *stage, uint64_t elapsed_us, int ok = 1);
+bool NeedsPresentationTiming();
 void Drawn(int quality);
 void Presented();
 void ResetView();
@@ -24,6 +27,8 @@ inline void Record(const void *, int, int, const char *, uint64_t, int,
                    size_t = 0, int = 0, int = 0) {}
 inline void BeginView(const void *, const char *, const char *, int, int, int,
                       int) {}
+inline void ViewStage(const char *, uint64_t, int = 1) {}
+inline bool NeedsPresentationTiming() { return false; }
 inline void Drawn(int) {}
 inline void Presented() {}
 inline void ResetView() {}

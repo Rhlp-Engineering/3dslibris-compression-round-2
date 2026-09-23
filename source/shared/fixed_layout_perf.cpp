@@ -49,7 +49,7 @@ struct View {
   const void *doc = nullptr;
   int page = -1, zoom = -1, width = 0, height = 0, drawn = 0;
   unsigned seen = 0, id = 0;
-  uint64_t start = 0;
+  uint64_t start = 0, drawn_at = 0;
 } view;
 unsigned next_view = 0;
 } // namespace
@@ -108,8 +108,17 @@ void BeginView(const void *doc, const char *format, const char *file, int page,
   std::snprintf(e.file, sizeof(e.file), "%s", file ? file : "");
   Push(e);
 }
+void ViewStage(const char *stage, uint64_t elapsed_us, int ok) {
+  if (view.doc && !view.seen)
+    Record(view.doc, view.page, view.zoom, stage, elapsed_us, ok);
+}
+bool NeedsPresentationTiming() {
+  return view.doc && view.drawn && !view.seen;
+}
 void Drawn(int quality) {
   view.drawn = quality;
+  if (!view.seen)
+    view.drawn_at = Now();
 }
 void ResetView() {
   view = View();
@@ -122,9 +131,12 @@ void Presented() {
   const unsigned bit = 1u << quality;
   if (view.seen & bit)
     return;
-  if (!view.seen)
+  if (!view.seen) {
     Record(view.doc, view.page, view.zoom, "first_present", Now() - view.start,
            1);
+    Record(view.doc, view.page, view.zoom, "draw_to_present",
+           Now() - view.drawn_at, 1);
+  }
   view.seen |= bit;
   Record(view.doc, view.page, view.zoom,
          quality == 3   ? "final_present"

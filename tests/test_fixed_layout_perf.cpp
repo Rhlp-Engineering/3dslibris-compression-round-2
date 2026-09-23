@@ -19,11 +19,15 @@ int main() {
   Reporter r;
   int doc;
   fixed_perf::BeginView(&doc, "CBZ", "book.cbz", 0, 1, 400, 240);
+  assert(!fixed_perf::NeedsPresentationTiming());
+  fixed_perf::ViewStage("pdf.blit_main", 123);
+  fake_tick += 500;
   fixed_perf::Drawn(2); // Interactive image ready; not presented yet.
+  assert(fixed_perf::NeedsPresentationTiming());
   fixed_perf::Flush(&r);
   for (const auto &s : r.lines)
     assert(s.find("first_present") == std::string::npos);
-  fake_tick += 2000;
+  fake_tick += 1500;
   fixed_perf::Presented();
   fixed_perf::Flush(&r);
   int first = 0, final = 0;
@@ -36,8 +40,16 @@ int main() {
   for (const auto &s : r.lines)
     timed |= s.find("stage=first_present us=2000 ") != std::string::npos;
   assert(timed);
+  bool stage = false, tail = false;
+  for (const auto &s : r.lines) {
+    stage |= s.find("stage=pdf.blit_main us=123 ") != std::string::npos;
+    tail |= s.find("stage=draw_to_present us=1500 ") != std::string::npos;
+  }
+  assert(stage && tail && !fixed_perf::NeedsPresentationTiming());
   auto n = r.lines.size();
+  fixed_perf::ViewStage("pdf.blit_main", 999);
   fixed_perf::Drawn(2);
+  assert(!fixed_perf::NeedsPresentationTiming());
   fixed_perf::Presented();
   fixed_perf::Flush(&r);
   assert(r.lines.size() == n); // No per-frame logging.
@@ -47,6 +59,7 @@ int main() {
   fixed_perf::Flush(&r);
   assert(r.lines.size() > n);
   fixed_perf::ResetView();
+  assert(!fixed_perf::NeedsPresentationTiming());
   std::thread worker([&] {
     for (int i = 0; i < 100; i++)
       fixed_perf::Record(&doc, 1, 1, "decode", 10, 1, 42, 20, 30);
