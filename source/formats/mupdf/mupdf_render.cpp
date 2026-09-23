@@ -202,7 +202,7 @@ bool RenderMuPdfBitmap(fz_context *ctx, fz_document *doc, int page_index,
                        const pdf_view_utils::NormalizedRect *crop_rect,
                        fz_display_list *reuse_list,
                        fz_display_list **out_list,
-                       IStatusReporter *reporter) {
+                       IStatusReporter *reporter, const char *perf_stage) {
   if (!ctx || !doc || !out || scale <= 0.0f)
     return false;
   DBG_LOGF_CAT(reporter, DBG_LEVEL_TRACE, DBG_CAT_RENDER,
@@ -211,7 +211,8 @@ bool RenderMuPdfBitmap(fz_context *ctx, fz_document *doc, int page_index,
                crop_rect ? 1 : 0);
 
   fixed_perf::Timer perf_total(doc, page_index, -1,
-      (!reuse_list && !out_list) ? "pdf.preview_total" : "pdf.interactive_total");
+      perf_stage ? perf_stage :
+      ((!reuse_list && !out_list) ? "pdf.preview_total" : "pdf.interactive_total"));
   uint64_t perf_phase = 0;
   fz_page *page = NULL;
   fz_pixmap *pixmap = NULL;

@@ -199,12 +199,23 @@ bool EnsureCurrentMuPdfPreviewCache(Book::MuPdfState *mupdf_state, int page_inde
     mupdf_state->page_too_complex_for_device = page_index;
     return false;
   }
+  // Keep one interpretation of the current page for preview, zoom and strips.
+  // The existing helper joins any active strip before dropping an old list.
+  fz_display_list *display_list = NULL;
+  if (!EnsureMuPdfDisplayListForPage(mupdf_state, page_index, &display_list))
+    return false;
+  fz_display_list *new_list = NULL;
   if (!RenderMuPdfBitmap(mupdf_state->ctx, mupdf_state->doc, page_index,
                          preview_scale, &rendered, &page_width, &page_height,
-                         NULL, NULL, NULL, mupdf_state->reporter)) {
+                         NULL, display_list, display_list ? NULL : &new_list,
+                         mupdf_state->reporter, "pdf.preview_total")) {
     DBG_LOGF_CAT(mupdf_state->reporter, DBG_LEVEL_WARN, DBG_CAT_RENDER,
                  "MUPDF preview: render-failed page=%d", page_index);
     return false;
+  }
+  if (new_list) {
+    mupdf_state->cached_display_list = new_list;
+    mupdf_state->cached_display_list_page = page_index;
   }
   DBG_LOGF_CAT(mupdf_state->reporter, DBG_LEVEL_TRACE, DBG_CAT_RENDER,
                "MUPDF preview: render-done page=%d bmp=%dx%d", page_index,
