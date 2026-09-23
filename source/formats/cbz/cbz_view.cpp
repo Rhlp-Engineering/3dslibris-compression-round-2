@@ -252,7 +252,11 @@ bool EnsureCbzPreviewCache(Book::CbzState *cbz_state, int page_index) {
   PromoteCbzAdjacentSlotIfMatching(cbz_state, page_index);
   if (CbzPreviewCacheValid(cbz_state->current_preview, page_index))
     return true;
-  if (!EnsureCbzSourceLoaded(cbz_state, page_index, 0))
+  // Synchronous drawing needs both caches before presenting. Decode once at
+  // the requested zoom so the preview and interactive view share the source.
+  const int source_zoom = debug_runtime::ForceSynchronousCbzDecode()
+                              ? cbz_state->viewport.zoom_index : 0;
+  if (!EnsureCbzSourceLoaded(cbz_state, page_index, source_zoom))
     return false;
 
   const pdf_view_utils::PreviewLayout preview_layout =
