@@ -465,10 +465,12 @@ void LibraryController::browser_draw(void) {
   int style = app_.ts->GetStyle();
   int savedPixelSize = app_.ts->pixelsize;
 
-  app_.ts->SetScreen(app_.ts->screenleft);
   app_.ts->SetStyle(TEXT_STYLE_BROWSER);
-  app_.ts->PrintSplash(app_.ts->screenleft);
-  {
+  // The splash stays unchanged while navigating or warming library covers.
+  // Entering the browser from another view marks both screens dirty.
+  if (app_.ts->screenleft_dirty) {
+    app_.ts->SetScreen(app_.ts->screenleft);
+    app_.ts->PrintSplash(app_.ts->screenleft);
     char versionMsg[16];
     snprintf(versionMsg, sizeof(versionMsg), "v%s", VERSION);
     const int versionWidth =
@@ -477,8 +479,8 @@ void LibraryController::browser_draw(void) {
     if (versionX < 0)
       versionX = 0;
     app_.ts->SetPixelSize(10);
-  app_.ts->SetPen(versionX, 57);
-  app_.ts->PrintString(versionMsg);
+    app_.ts->SetPen(versionX, 57);
+    app_.ts->PrintString(versionMsg);
   }
 
   app_.ts->SetScreen(app_.ts->screenright);

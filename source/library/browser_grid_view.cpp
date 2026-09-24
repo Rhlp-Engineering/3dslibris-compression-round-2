@@ -67,6 +67,11 @@ void DrawPage(const BrowserDrawContext &ctx, BrowserGridMarqueeState &marquee,
       int cx = btnX + 2 + inner_pad_x + (inner_w - draw_w) / 2;
       int cy = btnY + 2 + inner_pad_y + (inner_h - draw_h) / 2;
       int w = ctx.ts->display.height;
+      // Every row uses the same nearest-neighbor source columns.
+      int source_x[kCoverW];
+      for (int px = 0; px < draw_w; px++)
+        source_x[px] =
+            (int)((long long)px * (*ctx.books)[i]->coverWidth / draw_w);
       ctx.ts->MarkScreenDirtyRect(ctx.ts->screenright, cx, cy,
                                   cx + draw_w, cy + draw_h);
       for (int py = 0; py < draw_h && (cy + py) < 320; py++) {
@@ -74,15 +79,13 @@ void DrawPage(const BrowserDrawContext &ctx, BrowserGridMarqueeState &marquee,
             (int)((long long)py * (long long)(*ctx.books)[i]->coverHeight /
                   (long long)draw_h);
         for (int px = 0; px < draw_w && (cx + px) < 240; px++) {
-          const int src_x =
-              (int)((long long)px * (long long)(*ctx.books)[i]->coverWidth /
-                    (long long)draw_w);
           if (!browser_grid_geometry_utils::RoundedRectContains(
                   px, py, draw_w, draw_h, 5))
             continue;
           ctx.ts->screenright[(cy + py) * w + (cx + px)] =
               (*ctx.books)[i]
-                  ->coverPixels[src_y * (*ctx.books)[i]->coverWidth + src_x];
+                  ->coverPixels[src_y * (*ctx.books)[i]->coverWidth +
+                                source_x[px]];
         }
       }
     }
