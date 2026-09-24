@@ -40,6 +40,11 @@ Workers enqueue records in a fixed 64-event RAM queue. The main thread writes th
 When zooming a PDF on the same page, the display list is retained. Expect new raster/conversion work but no new `pdf.display_list` construction until the page changes or the document/view state is reset.
 
 `cbz.reuse_source` records a zoom increase served from an existing decoded bitmap with sufficient width and height. Its `us=0` is a marker, not a measured duration. `size` is the reused source size. Such a change should not need `cbz.read_zip` or `cbz.decode`. Other zoom increases can still require a larger decode; the optimization must not reduce sharpness.
+The direct-source synchronous draw can also reuse a source without emitting this marker; absence of ZIP/decode stages for that view confirms reuse.
+
+In the synchronous CBZ reader, a decoded source with enough resolution is drawn directly. Its view has no `cbz.scale_interactive` record or second full-page bitmap. That scale stage remains for a lower-resolution decode fallback and for the deferred reader path.
+
+At low zoom, synchronous CBZ decoding requests at least zoom index 4 as its source-quality floor. `cbz.decode_target` can therefore report a larger target than the current view's zoom suggests. A failed high-resolution decode still falls back through lower zooms. This favors text legibility and reuse when zooming in, at the cost of a slower first decode and a larger source bitmap.
 
 ZIP reads additionally emit `cbz.zip_open`, `cbz.zip_locate_offset` (or `cbz.zip_locate_name`) and `cbz.zip_read_inflate`. The latter includes entry metadata, opening the compressed entry, reading/inflating it and closing the entry. Closing the archive itself remains included only in the outer `cbz.read_zip` timer. These nested stages must not be added to that outer total.
 
@@ -68,3 +73,21 @@ The following detail is emitted only before the first presentation of a view (do
 The `present.*` and `draw_to_present` stages apply to CBZ too. A framebuffer-copy record with `ok=0` means no buffer was written on that attempt, not necessarily a failure. The PDF phase records describe elapsed work; renderer failures retain their existing nested error records.
 
 Compare `pdf.draw_total + draw_to_present` with `first_present` (small differences come from instrumentation and setup boundaries). Do not add enclosed phases or render totals again. To isolate the old unexplained gap, inspect `pdf.blit_main`, the three overview/overlay phases, then `draw_to_present`; within the latter, subtract the `present.*` durations to estimate the remaining reader/UI work. No measured interval should automatically be interpreted as an intentional delay.
+
+## Retained CBZ archive and decode phases
+
+The main CBZ view retains a private ZIP handle across page changes. `cbz.zip_reuse`
+(`us=0`) replaces `cbz.zip_open` on subsequent reads. Covers and background work
+still use independent handles. The reader closes on destruction, unrecovered read
+failure, path changes and view resets that restart workers (including resume).
+The next read opens lazily. Archive teardown is no longer part of every page read.
+
+On 3DS, `cbz.decode_*` splits the existing `cbz.decode` total into context setup,
+compressed-buffer copy, image header loading, pixmap decoding, residual subsampling,
+RGB565 allocation/conversion and resource release. `cbz.decode_target` is a zero-time
+marker containing the requested dimensions. Header, pixmap and subsample stages
+report their respective image dimensions. These nested records use the input byte
+vector as `doc`, page 0 and the attempted zoom: correlate them chronologically with
+the enclosing decode, not by matching its viewer pointer. Failed fallback attempts
+can omit the unfinished phase; the outer decode result remains authoritative.
+Host decode tests use stb_image; they do not execute this MuPDF path.
