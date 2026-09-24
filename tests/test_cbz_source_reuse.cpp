@@ -9,6 +9,9 @@
 typedef uint16_t u16;
 namespace debug_runtime { static bool sync = true; bool ForceSynchronousCbzDecode() { return sync; } }
 namespace format_limits { const size_t kMaxCbzPageEntryBytes = 1000000; }
+struct ArchiveReaderStub {
+  bool Read(const std::string &, int, std::vector<unsigned char> *, size_t);
+};
 struct Book {
   struct CbzState {
     struct PageBitmap {
@@ -21,6 +24,7 @@ struct Book {
     } current_preview, current_interactive;
     struct { int zoom_index = 3; } viewport;
     std::vector<int> entries = {0, 1};
+    ArchiveReaderStub archive_reader;
     std::string archive_path, last_error;
     int target_top_width = 240, target_top_height = 400;
     int target_bottom_width = 240, target_bottom_height = 320;
@@ -33,7 +37,7 @@ void PromoteCbzAdjacentSlotIfMatching(Book::CbzState *, int) {}
 bool CbzPreviewCacheValid(const Book::CbzState::Cache &c, int p) { return c.page == p && !c.pixels.empty(); }
 bool CbzBitmapCacheValid(const Book::CbzState::Cache &c, int p, int z) { return CbzPreviewCacheValid(c,p) && c.zoom_index == z; }
 void ResetCbzPageBitmap(Book::CbzState::PageBitmap *p) { *p = Book::CbzState::PageBitmap(); }
-bool ReadCbzArchiveEntryBytes(const std::string &, int, std::vector<unsigned char> *b, size_t) { ++reads; b->assign(10, 1); return true; }
+bool ArchiveReaderStub::Read(const std::string &, int, std::vector<unsigned char> *b, size_t) { ++reads; b->assign(10, 1); return true; }
 const char *GetLastCbzArchiveError() { return "read failed"; }
 const char *GetLastCbzDecodeError() { return "decode failed"; }
 bool DecodeCbzPageImage(const std::vector<unsigned char> &, int z, int, int, CbzDecodedPage *d) {
@@ -54,23 +58,28 @@ int main() {
   assert(EnsureCbzPreviewCache(&s, 0));
   assert(EnsureCbzInteractiveCache(&s, 0));
   assert(reads == 1 && decodes == 1 && "synchronous page must read and decode once");
-  assert(s.current_source.zoom_index == 3);
+  assert(s.current_interactive.pixels.empty() &&
+         "synchronous view must not duplicate a sufficient decoded source");
+  assert(s.current_source.zoom_index == 4 &&
+         "synchronous CBZ pages need a readable source at low zoom");
   assert(EnsureCbzInteractiveCache(&s, 0) && reads == 1);
   s.viewport.zoom_index = 2;
   assert(EnsureCbzInteractiveCache(&s, 0) && reads == 1);
   s.viewport.zoom_index = 4;
-  assert(EnsureCbzInteractiveCache(&s, 0) && reads == 2);
+  assert(EnsureCbzInteractiveCache(&s, 0) && reads == 1);
   assert(EnsureCbzPreviewCache(&s, 1));
-  assert(EnsureCbzInteractiveCache(&s, 1) && reads == 3);
+  assert(EnsureCbzInteractiveCache(&s, 1) && reads == 2);
   s.viewport.zoom_index = 6;
-  assert(EnsureCbzInteractiveCache(&s, 1) && reads == 3 && "full-resolution source must survive a zoom increase");
+  assert(EnsureCbzInteractiveCache(&s, 1) && reads == 2 && "full-resolution source must survive a zoom increase");
   Book::CbzState bucket;
   bucket.viewport.zoom_index = 2;
   assert(EnsureCbzPreviewCache(&bucket, 0));
+  assert(bucket.current_source.zoom_index == 4);
   const int bucket_reads = reads;
   bucket.viewport.zoom_index = 3;
   assert(EnsureCbzInteractiveCache(&bucket, 0) && reads == bucket_reads && "decoded dimensions already cover this zoom");
   // A wide source is insufficient if its height does not cover the new zoom.
+  bucket.current_source.zoom_index = 2;
   bucket.current_source.bitmap.height = 100;
   bucket.current_interactive.page = -1;
   assert(EnsureCbzInteractiveCache(&bucket, 0) && reads == bucket_reads + 1);
