@@ -231,7 +231,7 @@ bool EnsureCbzSourceLoaded(Book::CbzState *cbz_state, int page_index,
 
   fixed_perf::Timer perf_read(&cbz_state->entries, page_index, zoom_index, "cbz.read_zip");
   std::vector<unsigned char> bytes;
-  if (!ReadCbzArchiveEntryBytes(cbz_state->archive_path,
+  if (!cbz_state->archive_reader.Read(cbz_state->archive_path,
                                 cbz_state->entries[(size_t)page_index], &bytes,
                                 format_limits::kMaxCbzPageEntryBytes)) {
     perf_read.End(0);
@@ -474,6 +474,8 @@ void Book::ResetCbzTransientViewState(bool restart_worker) {
     return;
 
   ShutdownCbzWorker(cbz_state);
+  // Reopen lazily after HOME/resume instead of reusing an old SD handle.
+  cbz_state->archive_reader.Close();
   InitCbzWorker(cbz_state);
 }
 

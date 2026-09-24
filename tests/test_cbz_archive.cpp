@@ -46,12 +46,17 @@ int main() {
   ExpectTrue("index archive", IndexCbzArchiveEntries(archive, &entries));
   ExpectEqInt("entry count", (int)entries.size(),
               (int)(sizeof(expected) / sizeof(expected[0])));
+  CbzArchiveReader reader;
   for (size_t i = 0; i < entries.size(); i++) {
     ExpectEq("natural page order", entries[i].normalized_path, expected[i]);
     std::vector<unsigned char> bytes;
     ExpectTrue("read sorted entry by ZIP offset",
                ReadCbzArchiveEntryBytes(archive, entries[i], &bytes, 1024));
     ExpectEq("sorted entry payload", std::string(bytes.begin(), bytes.end()),
+             expected[i]);
+    ExpectTrue("read with retained archive",
+               reader.Read(archive, entries[i], &bytes, 1024));
+    ExpectEq("retained archive payload", std::string(bytes.begin(), bytes.end()),
              expected[i]);
     CbzPageEntry by_name = entries[i];
     by_name.offset = 0;
@@ -60,6 +65,16 @@ int main() {
     ExpectEq("name lookup payload", std::string(bytes.begin(), bytes.end()),
              expected[i]);
   }
+
+  std::vector<unsigned char> bytes;
+  reader.Close();
+  reader.Close();
+  ExpectTrue("reopen after explicit close", reader.Read(archive, entries[0], &bytes, 1024));
+  ExpectTrue("reject oversized entry", !reader.Read(archive, entries[0], &bytes, 1));
+  ExpectTrue("recover after read error", reader.Read(archive, entries[0], &bytes, 1024));
+  ExpectTrue("reject missing archive", !reader.Read(std::string(archive) + ".missing", entries[0], &bytes, 1024));
+  ExpectTrue("recover after switching path", reader.Read(archive, entries[0], &bytes, 1024));
+  ExpectEq("reopened payload", std::string(bytes.begin(), bytes.end()), expected[0]);
 
   std::vector<CbzComicInfoBookmark> bookmarks;
   ExpectTrue("read ComicInfo bookmarks", ReadComicInfoBookmarks(archive, &bookmarks));

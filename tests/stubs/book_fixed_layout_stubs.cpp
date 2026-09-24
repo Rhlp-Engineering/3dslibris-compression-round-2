@@ -5,8 +5,14 @@
  */
 #include "book/book.h"
 #include "formats/cbz/cbz_types.h"
+#include <cassert>
 
 // ---- CBZ ----
+
+CbzArchiveReader::CbzArchiveReader() : archive_(nullptr), path_() {}
+CbzArchiveReader::~CbzArchiveReader() {
+  assert(!archive_); // These parser tests never open a CBZ archive.
+}
 
 void Book::ResetCbzState() {
   if (!cbz_state)
