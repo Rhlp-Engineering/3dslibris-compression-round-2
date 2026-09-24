@@ -12,6 +12,7 @@
 */
 
 #include "settings/prefs.h"
+#include "settings/prefs_file_utils.h"
 
 #include "3ds.h"
 #include "app/app.h"
@@ -415,7 +416,8 @@ int Prefs::Read() {
   last_opened_by_book_key.clear();
   saved_state_by_book_key.clear();
 
-  FILE *fp = fopen(paths::GetPrefsFile().c_str(), "r");
+  FILE *fp = prefs_file_utils::OpenForRead(paths::GetPrefsFile(),
+                                          paths::GetPrefsBackupFile());
   if (!fp) {
     err = 255;
     return err;
@@ -603,15 +605,35 @@ void Prefs::ApplySavedBookState(Book *book) const {
     book->SetLastOpenedTime(it->second);
 }
 
-//! Write settings to prefs file.
-//! \return Error code.
+//! Coalesce rapid settings changes; normal exit still writes immediately.
+void Prefs::RequestWrite() {
+  write_pending = true;
+  write_due_ms = osGetTime() + 2000;
+}
+
+bool Prefs::FlushPendingWrite(bool force) {
+  if (!write_pending || (!force && osGetTime() < write_due_ms))
+    return false;
+  Write();
+  return true;
+}
+
+//! Write settings to a temporary file, then replace the current preferences.
+//! \return 0 on success, 255 on failure.
 int Prefs::Write() {
-  int err = 0;
+  const uint64_t write_start = osGetTime();
+  // Failed writes remain pending, but retries must not stall every frame.
+  write_pending = true;
+  write_due_ms = write_start + 5000;
   Text *ts = app ? app->ts.get() : nullptr;
 
-  FILE *fp = fopen(paths::GetPrefsFile().c_str(), "w");
-  if (!fp)
+  FILE *fp = fopen(paths::GetPrefsTempFile().c_str(), "wb");
+  if (!fp) {
+    write_due_ms = osGetTime() + 5000;
+    DBG_LOGF(app, "TIMING: prefs_write ms=%llu ok=0 reason=open_temp",
+             (unsigned long long)(osGetTime() - write_start));
     return 255;
+  }
 
   fprintf(fp, "<dslibris format=\"2\">\n");
   fprintf(fp,
@@ -784,12 +806,21 @@ int Prefs::Write() {
 
   fprintf(fp, "</dslibris>\n");
   fprintf(fp, "\n");
-  fclose(fp);
-
-  return err;
+  const bool ok = prefs_file_utils::Commit(fp, paths::GetPrefsFile(),
+                                          paths::GetPrefsTempFile(),
+                                          paths::GetPrefsBackupFile());
+  write_pending = !ok;
+  if (!ok)
+    write_due_ms = osGetTime() + 5000;
+  DBG_LOGF(app, "TIMING: prefs_write ms=%llu ok=%u books=%u",
+           (unsigned long long)(osGetTime() - write_start), ok ? 1u : 0u,
+           (unsigned)saved_state_by_book_key.size());
+  return ok ? 0 : 255;
 }
 
 void Prefs::Init() {
+  write_pending = false;
+  write_due_ms = 0;
   modtime = 0; // fill this in with gettimeofday()
   swapshoulder = false;
   time24h = true;

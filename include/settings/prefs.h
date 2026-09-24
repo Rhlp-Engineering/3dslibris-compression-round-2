@@ -30,6 +30,8 @@ public:
   void Apply();
   int Read();
   int Write();
+  void RequestWrite();
+  bool FlushPendingWrite(bool force = false);
   void ClearPendingCurrentBookRestore();
   void SetPendingCurrentBookRestore(const char *folder, const char *filename,
                                     int position,
@@ -69,6 +71,8 @@ public:
 
 private:
   App *app;
+  bool write_pending;
+  uint64_t write_due_ms;
   bool pending_current_book_restore;
   bool collecting_pending_current_book;
   std::string pending_current_folder;

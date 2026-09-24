@@ -83,7 +83,7 @@ static void ToggleClockFormatSetting(Prefs *prefs) {
   if (!prefs)
     return;
   prefs->time24h = settings::ToggleSetting(prefs->time24h);
-  prefs->Write();
+  prefs->RequestWrite();
 }
 
 static void ToggleReopenLastBookSetting(App *app) {
@@ -91,7 +91,7 @@ static void ToggleReopenLastBookSetting(App *app) {
     return;
   app->reopen = settings::ToggleSetting(app->reopen);
   if (app->prefs)
-    app->prefs->Write();
+    app->prefs->RequestWrite();
 }
 
 static void CycleColorMode(Text *ts, App *app) {
@@ -124,7 +124,7 @@ static void ToggleBrowserViewSetting(App *app) {
   } else {
     app->SetBrowserPageStart(0);
   }
-  app->prefs->Write();
+  app->prefs->RequestWrite();
   app->ResetBrowserMarquee();
   app->MarkBrowserDirty();
   app->LoadVisibleBrowserCoverCaches();
@@ -171,7 +171,7 @@ static void ToggleFixedLayoutReadingDirection(Prefs *prefs) {
   if (!prefs)
     return;
   prefs->fixed_layout_rtl = settings::ToggleSetting(prefs->fixed_layout_rtl);
-  prefs->Write();
+  prefs->RequestWrite();
 }
 
 static void ToggleCirclePadPageTurnSetting(Prefs *prefs) {
@@ -179,7 +179,7 @@ static void ToggleCirclePadPageTurnSetting(Prefs *prefs) {
     return;
   prefs->circle_pad_page_turn =
       settings::ToggleSetting(prefs->circle_pad_page_turn);
-  prefs->Write();
+  prefs->RequestWrite();
 }
 
 static void CycleLibrarySortSetting(App *app) {
@@ -188,7 +188,7 @@ static void CycleLibrarySortSetting(App *app) {
   const int next = settings::NextCyclicSetting(
       static_cast<int>(app->prefs->library_sort_mode), LIBRARY_SORT_COUNT);
   app->prefs->library_sort_mode = static_cast<LibrarySortMode>(next);
-  app->prefs->Write();
+  app->prefs->RequestWrite();
   app->ReSortLibraryBooks();
   app->ResetBrowserMarquee();
   app->MarkBrowserDirty();
@@ -218,7 +218,7 @@ static void TogglePublisherTextIndentSetting(App *app, Book *book, bool is_book_
     app->MarkBookLayoutDirty();
   }
   if (app->prefs)
-    app->prefs->Write();
+    app->prefs->RequestWrite();
 }
 
 static void TogglePublisherBlockMarginsSetting(App *app, Book *book, bool is_book_ctx) {
@@ -235,7 +235,7 @@ static void TogglePublisherBlockMarginsSetting(App *app, Book *book, bool is_boo
     app->MarkBookLayoutDirty();
   }
   if (app->prefs)
-    app->prefs->Write();
+    app->prefs->RequestWrite();
 }
 
 static void TogglePublisherHorizontalMarginsSetting(App *app, Book *book,
@@ -253,7 +253,7 @@ static void TogglePublisherHorizontalMarginsSetting(App *app, Book *book,
     app->MarkBookLayoutDirty();
   }
   if (app->prefs)
-    app->prefs->Write();
+    app->prefs->RequestWrite();
 }
 
 SettingsController::SettingsController(App &app)
@@ -321,7 +321,7 @@ void SettingsController::ToggleCurrentBookMobiLineWrapFix() {
   if (book->GetPageCount() > 0)
     app_.SetPrefsLayoutNoticePending(true);
   PrefsRefreshButton(PREFS_BUTTON_LIBRARY_VIEW);
-  app_.prefs->Write();
+  app_.prefs->RequestWrite();
   app_.MarkPrefsDirty();
 }
 
@@ -707,14 +707,14 @@ void SettingsController::PrefsIncreasePixelSize() {
       app_.ts->SetPixelSize((u8)(value + 1));
       app_.MarkBookLayoutDirty();
       PrefsRefreshButton(PREFS_BUTTON_FONTSIZE);
-      app_.prefs->Write();
+      app_.prefs->RequestWrite();
     }
   } else if (app_.reader_font_size < kTextPixelSizeMax) {
     app_.reader_font_size++;
     app_.ts->SetPixelSize((u8)app_.reader_font_size);
     app_.MarkBookLayoutDirty();
     PrefsRefreshButton(PREFS_BUTTON_FONTSIZE);
-    app_.prefs->Write();
+    app_.prefs->RequestWrite();
   }
 }
 
@@ -732,14 +732,14 @@ void SettingsController::PrefsDecreasePixelSize() {
       app_.ts->SetPixelSize((u8)(value - 1));
       app_.MarkBookLayoutDirty();
       PrefsRefreshButton(PREFS_BUTTON_FONTSIZE);
-      app_.prefs->Write();
+      app_.prefs->RequestWrite();
     }
   } else if (app_.reader_font_size > kTextPixelSizeMin) {
     app_.reader_font_size--;
     app_.ts->SetPixelSize((u8)app_.reader_font_size);
     app_.MarkBookLayoutDirty();
     PrefsRefreshButton(PREFS_BUTTON_FONTSIZE);
-    app_.prefs->Write();
+    app_.prefs->RequestWrite();
   }
 }
 
@@ -757,14 +757,14 @@ void SettingsController::PrefsIncreaseLineSpacing() {
       app_.ts->linespacing = value + 1;
       app_.MarkBookLayoutDirty();
       PrefsRefreshButton(PREFS_BUTTON_LINE_SPACING);
-      app_.prefs->Write();
+      app_.prefs->RequestWrite();
     }
   } else if (app_.reader_line_spacing < kLineSpacingMaxPx) {
     app_.reader_line_spacing++;
     app_.ts->linespacing = app_.reader_line_spacing;
     app_.MarkBookLayoutDirty();
     PrefsRefreshButton(PREFS_BUTTON_LINE_SPACING);
-    app_.prefs->Write();
+    app_.prefs->RequestWrite();
   }
 }
 
@@ -782,14 +782,14 @@ void SettingsController::PrefsDecreaseLineSpacing() {
       app_.ts->linespacing = value - 1;
       app_.MarkBookLayoutDirty();
       PrefsRefreshButton(PREFS_BUTTON_LINE_SPACING);
-      app_.prefs->Write();
+      app_.prefs->RequestWrite();
     }
   } else if (app_.reader_line_spacing > 0) {
     app_.reader_line_spacing--;
     app_.ts->linespacing = app_.reader_line_spacing;
     app_.MarkBookLayoutDirty();
     PrefsRefreshButton(PREFS_BUTTON_LINE_SPACING);
-    app_.prefs->Write();
+    app_.prefs->RequestWrite();
   }
 }
 
@@ -806,13 +806,13 @@ void SettingsController::PrefsIncreaseParaspacing() {
       book->SetStyleParagraphSpacingOverride(value + 1);
       app_.MarkBookLayoutDirty();
       PrefsRefreshButton(PREFS_BUTTON_PARASPACING);
-      app_.prefs->Write();
+      app_.prefs->RequestWrite();
     }
   } else if (app_.paraspacing < 4) {
     app_.paraspacing++;
     app_.MarkBookLayoutDirty();
     PrefsRefreshButton(PREFS_BUTTON_PARASPACING);
-    app_.prefs->Write();
+    app_.prefs->RequestWrite();
   }
 }
 
@@ -829,13 +829,13 @@ void SettingsController::PrefsDecreaseParaspacing() {
       book->SetStyleParagraphSpacingOverride(value - 1);
       app_.MarkBookLayoutDirty();
       PrefsRefreshButton(PREFS_BUTTON_PARASPACING);
-      app_.prefs->Write();
+      app_.prefs->RequestWrite();
     }
   } else if (app_.paraspacing > 0) {
     app_.paraspacing--;
     app_.MarkBookLayoutDirty();
     PrefsRefreshButton(PREFS_BUTTON_PARASPACING);
-    app_.prefs->Write();
+    app_.prefs->RequestWrite();
   }
 }
 
@@ -846,7 +846,7 @@ void SettingsController::PrefsFlipOrientation() {
   app_.SetOrientation(next_orientation);
   app_.MarkBookLayoutDirty();
   PrefsRefreshButton(PREFS_BUTTON_ORIENTATION);
-  app_.prefs->Write();
+  app_.prefs->RequestWrite();
   if (app_.GetMode() == AppMode::Prefs)
     PrefsDraw();
 }
@@ -857,7 +857,7 @@ void SettingsController::PrefsToggleHandedness() {
                       : orientation_utils::ORIENT_TURNED_RIGHT;
   app_.SetHandedness(next);
   PrefsRefreshButton(PREFS_BUTTON_HANDEDNESS);
-  app_.prefs->Write();
+  app_.prefs->RequestWrite();
   if (app_.GetMode() == AppMode::Prefs)
     PrefsDraw();
 }
@@ -1158,7 +1158,7 @@ void SettingsController::ResetToDefaults() {
   app_.prefs->show_time_remaining = false;
   app_.reopen = true;
   app_.MarkBookLayoutDirty();
-  app_.prefs->Write();
+  app_.prefs->RequestWrite();
   for (int i = 0; i < PREFS_BUTTON_COUNT; i++)
     PrefsRefreshButton(i);
   app_.MarkPrefsDirty();
@@ -1211,7 +1211,7 @@ void SettingsController::PrefsHandlePress() {
   if (selected_button == PREFS_BUTTON_COLORMODE) {
     CycleColorMode(app_.ts.get(), &app_);
     PrefsRefreshButton(PREFS_BUTTON_COLORMODE);
-    app_.prefs->Write();
+    app_.prefs->RequestWrite();
     app_.MarkPrefsDirty();
     return;
   }
@@ -1220,7 +1220,7 @@ void SettingsController::PrefsHandlePress() {
     app_.prefs->show_time_remaining =
         settings::ToggleSetting(app_.prefs->show_time_remaining);
     PrefsRefreshButton(PREFS_BUTTON_TIME_REMAINING);
-    app_.prefs->Write();
+    app_.prefs->RequestWrite();
     app_.RequestStatusRedraw();
     app_.MarkPrefsDirty();
     return;
