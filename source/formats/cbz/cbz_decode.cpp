@@ -353,23 +353,32 @@ bool ScaleCbzBitmap(const CbzBitmap &src, int dst_width, int dst_height,
     return true;
   }
 
+  struct ColumnSample {
+    int x0, x1;
+    float t;
+  };
+  std::vector<ColumnSample> columns((size_t)dst_width);
+  for (int x = 0; x < dst_width; x++) {
+    const float src_xf =
+        (((float)x + 0.5f) * (float)src.width / (float)dst_width) - 0.5f;
+    const float clamped_x =
+        std::max(0.0f, std::min((float)(src.width - 1), src_xf));
+    columns[x].x0 = (int)clamped_x;
+    columns[x].x1 = std::min(src.width - 1, columns[x].x0 + 1);
+    columns[x].t = clamped_x - (float)columns[x].x0;
+  }
   for (int y = 0; y < dst_height; y++) {
+    const float src_yf =
+        (((float)y + 0.5f) * (float)src.height / (float)dst_height) - 0.5f;
+    const float clamped_y =
+        std::max(0.0f, std::min((float)(src.height - 1), src_yf));
+    const int y0 = (int)clamped_y;
+    const int y1 = std::min(src.height - 1, y0 + 1);
+    const float ty = clamped_y - (float)y0;
     for (int x = 0; x < dst_width; x++) {
-      const float src_xf =
-          (((float)x + 0.5f) * (float)src.width / (float)dst_width) - 0.5f;
-      const float src_yf =
-          (((float)y + 0.5f) * (float)src.height / (float)dst_height) - 0.5f;
-      const float clamped_x =
-          std::max(0.0f, std::min((float)(src.width - 1), src_xf));
-      const float clamped_y =
-          std::max(0.0f, std::min((float)(src.height - 1), src_yf));
-
-      const int x0 = (int)clamped_x;
-      const int y0 = (int)clamped_y;
-      const int x1 = std::min(src.width - 1, x0 + 1);
-      const int y1 = std::min(src.height - 1, y0 + 1);
-      const float tx = clamped_x - (float)x0;
-      const float ty = clamped_y - (float)y0;
+      const int x0 = columns[x].x0;
+      const int x1 = columns[x].x1;
+      const float tx = columns[x].t;
 
       int r00 = 0, g00 = 0, b00 = 0;
       int r10 = 0, g10 = 0, b10 = 0;
