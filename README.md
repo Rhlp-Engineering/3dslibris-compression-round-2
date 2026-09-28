@@ -22,11 +22,14 @@ Nintendo 3DS homebrew ebook and manga reader based on the original Nintendo DS p
 ## Features
 
 - Reads ebooks and manga on Nintendo 3DS hardware and Azahar.
-- Library browser with grid and list views, cover thumbnails, metadata titles, and touch navigation.
+- Library browser with folders, grid and list views, sorting options, custom covers, and touch navigation.
 - Six reading themes with matching splash screens and reader gradients.
-- Supported formats: `EPUB`, `FB2`, `TXT`, `RTF`, `ODT`, `MOBI`, `PDF`, `CBZ` and `XPS`.
+- Supported formats: `EPUB`, `FB2`, `TXT`, `Markdown`, `RTF`, `ODT`, `MOBI`, `PDF`, `CBZ` and `XPS`.
 - `EPUB` reflow with TOC support, bookmarks, `go to page`, cached pagination, and broad inline/block formatting support.
-- Fixed-layout viewer for manga and document formats (`CBZ`, `PDF` and `XPS`) with zoom, pan, outline navigation, and full-page preview.
+- Portrait and landscape reading, with separate handedness and PDF/CBZ reading direction settings.
+- Global and per-book controls for font size, spacing, and EPUB publisher layout.
+- Reading progress and bookmarks saved across library folders, with an option to reopen the last book on startup.
+- Fixed-layout viewer for manga and document formats (`CBZ`, `PDF` and `XPS`) with zoom, pan, chapter navigation, and full-page preview.
 - Bundled fallback fonts for broader language coverage (Latin, Cyrillic, Greek, CJK, Arabic, Hebrew, Thai, and more).
 
 
@@ -117,6 +120,7 @@ Good support:
 
 - `FB2`
 - `TXT`
+- `Markdown` (`.md` and `.markdown`): headings, emphasis, lists, blockquotes, and code spans in the reflowable reader.
 - `RTF`
 - `ODT`
 
@@ -124,7 +128,7 @@ Experimental or best-effort:
 
 - `MOBI`: can be slow on first open, TOC quality depends on file structure, and some files may fall back to safer but more limited parsing.
 - `PDF`: viewer mode with zoomed reading area and full-page preview.
-- `CBZ`: viewer mode for manga and image-based books.
+- `CBZ`: viewer mode for manga and image-based books, with natural page ordering and chapter navigation from `ComicInfo.xml` when available.
 - `XPS`: viewer mode with the same fixed-layout reader controls.
 
 ## Limitations
@@ -135,7 +139,7 @@ Experimental or best-effort:
 - SVG support in EPUB is limited to common wrappers that reference supported raster images.
 - Some malformed EPUB anchors and MOBI tables of contents can produce approximate navigation.
 - Large or malformed MOBI files may open slowly or lose some rich formatting in safer fallback paths.
-- After changing layout-related settings such as font size, spacing, orientation, or some format-specific options, reopening the current book may be necessary.
+- Some layout changes require reopening the current book; the book settings screen shows a notice when this is needed.
 
 ## Reporting crashes
 
@@ -145,7 +149,7 @@ If 3dslibris crashes, include as much of the following as possible when opening 
 - **Install type:** `.3dsx` or `.cia`
 - **Console model:** Old 3DS, New 3DS, 2DS, New 2DS XL, etc.
 - **Luma3DS version** and system version/region if relevant
-- **Book format:** EPUB, PDF, CBZ, MOBI, FB2, TXT, RTF, ODT, XPS
+- **Book format:** EPUB, PDF, CBZ, MOBI, FB2, TXT, Markdown, RTF, ODT, XPS
 - **Steps to reproduce**
 - **Crash dump, log file, or screenshots** if available
 
@@ -176,7 +180,7 @@ docker run --rm \
   -e DEVKITPRO=/opt/devkitpro \
   -e DEVKITARM=/opt/devkitpro/devkitARM \
   3dslibris-build \
-  sh -lc 'make clean && make -j2 && make zip-sdmc && make debug-3dsx && make cia && make source-release'
+  sh -lc 'make clean && make -j2 && make zip-sdmc && make debug-3dsx && make cia && make debug-cia && make source-release'
 ```
 
 Expected outputs:
